@@ -1,4 +1,4 @@
-import XLSX from "xlsx-js-style";
+import * as XLSX from "xlsx-js-style";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
