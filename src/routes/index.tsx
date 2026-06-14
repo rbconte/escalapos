@@ -766,6 +766,25 @@ function EscalaPage() {
         onOpenChange={setPainelOpen}
         ocorrencias={ocorrencias}
       />
+
+      <ExportEscalaModal
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        inicio={start}
+        fim={end}
+        pessoas={pessoas}
+        programas={programas}
+        ilhas={ilhas}
+        conteudos={conteudos}
+        escalas={exportEscalas}
+        initialFilters={{
+          conteudos: fConteudo !== ALL ? [fConteudo] : [],
+          programas: fPrograma !== ALL ? [fPrograma] : [],
+          ilhas: fIlha !== ALL ? [fIlha] : [],
+          pessoas: [],
+        }}
+        onRangeChange={(a, b) => setExportRange({ start: a, end: b })}
+      />
     </div>
   );
 }
