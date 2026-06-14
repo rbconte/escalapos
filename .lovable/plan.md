@@ -1,60 +1,84 @@
-## Módulo de Gestão e Dashboards
+# Exportação avançada da Escala Operacional
 
-Novo módulo **gerencial** (read-only sobre dados existentes) com 5 dashboards, filtros globais e novas entidades para Férias e Licenças. Nada da Escala Operacional atual será alterado.
+Substituir o botão atual "Exportar Excel" (que baixa imediatamente) por um modal **Exportar Escala** que permite configurar formato, período, filtros e layout antes de gerar o arquivo.
 
-### 1. Banco de dados (migração)
+## 1. UI — Modal "Exportar Escala"
 
-Novas tabelas em `public`:
+Novo componente `src/components/escala/export-modal.tsx` aberto pelo botão "Exportar" em `src/routes/index.tsx`.
 
-- **`ferias`** — `pessoa_id`, `data_inicio`, `data_fim`, `status` (Programada / Aprovada / Em andamento / Concluída / Vencida), `observacao`
-- **`licencas`** — `pessoa_id`, `tipo` (Médica / Maternidade / Paternidade / Treinamento / Outros), `data_inicio`, `data_fim`, `observacao`
+Seções do modal (Dialog do shadcn, scroll interno):
 
-A tabela `ocorrencias` já existe e será reutilizada (campos compatíveis com o PRD). Adicionamos CRUD básico de Ocorrências na UI de Pessoas (Dashboard 2).
+1. **Formato** — Tabs/RadioGroup: `Excel (.xlsx)` | `PDF (.pdf)`.
+2. **Período** — dois date pickers (Data inicial / Data final). Pré-preenchidos com o intervalo da view atual (`rangeForView(anchor, view)`).
+3. **Tipo de exportação** — RadioGroup:
+   - `Escala Completa` — replica o layout visual (agrupado por Conteúdo → Programa, todos os colaboradores do grupo, colunas = dias).
+   - `Escala Filtrada` — lista plana apenas dos registros que passam nos filtros.
+4. **Filtros** (multi-select com opção "Todos"):
+   - Conteúdo (lista fixa: Jornalismo, Esporte, Entretenimento, Magazines, Promoções, Documentários, Outros — derivada de `conteudos` ativos + "Outros").
+   - Programa (de `programas`).
+   - Colaborador (de `pessoas`).
+   - Ilha (de `ilhas`).
+   Cada filtro usa um Popover com checkboxes + botão "Todos".
+5. **Opções PDF** (visíveis só quando formato = PDF):
+   - Orientação: `Retrato` | `Paisagem` (default Paisagem).
+   - Tamanho: `A4` | `A3` (default A3).
+   - Switch **Exibir cabeçalho** (default ligado) com campos auto-preenchidos: empresa, nome do relatório, data de geração, período, usuário responsável (input de texto editável).
+6. **Resumo** — bloco final com contagem: "X colaboradores · Y alocações · Z dias". Botões: `Cancelar` / `Exportar`.
 
-Cada tabela com `created_at`, `updated_at`, RLS aberta (mesmo padrão atual: `Public manage ...`) e GRANTs para `anon`, `authenticated`, `service_role` — mantendo coerência com o resto do schema.
+Pré-seleção: os filtros do modal começam com os filtros atualmente aplicados na tela.
 
-### 2. Rotas e menu
+## 2. Geração Excel — `src/lib/export-excel.ts` (refatorar)
 
-Sidebar ganha grupo **Gestão** com:
+Usar `xlsx-js-style` (fork de `xlsx` com suporte a estilos de célula — `xlsx` puro não preserva cores) para escrever cores/agrupamentos. Adicionar como dependência.
 
-```
-/gestao              → Visão Geral
-/gestao/pessoas      → Pessoas
-/gestao/operacao     → Operação
-/gestao/conteudos    → Conteúdos
-/gestao/planejamento → Planejamento
-```
+Estrutura do arquivo (modo Escala Completa):
+- Linha 1: título mesclado (nome do relatório + período).
+- Linha 2: cabeçalho — `Colaborador`, `Função`, depois 1 coluna por dia (`EEE dd/MM`).
+- Para cada **Conteúdo**: linha mesclada com cor de fundo = `conteudo.cor`.
+  - Para cada **Programa**: linha mesclada com cor suave = `hexToSoftBg(programa.cor)`.
+    - Linhas dos colaboradores com células contendo `cellText()` e fundo = cor do programa.
+- Painel congelado nas 2 primeiras colunas + 2 primeiras linhas (`!freeze`).
+- Larguras automáticas (cálculo simples baseado no maior texto).
+- Modo Escala Filtrada: tabela plana (Data, Colaborador, Função, Conteúdo, Programa, Ilha, Início, Fim, Modalidade, Status).
 
-Layout em `src/routes/gestao.tsx` (Outlet + barra de filtros globais). Subrotas em `gestao.index.tsx`, `gestao.pessoas.tsx`, etc.
+## 3. Geração PDF — novo `src/lib/export-pdf.ts`
 
-### 3. Filtros globais
+Para fidelidade visual, renderizar o DOM da escala filtrada com **html2canvas-pro** + **jspdf**:
+1. Construir, off-screen, um componente `<EscalaPrintable>` (em `src/components/escala/escala-printable.tsx`) que renderiza a grade exatamente como na tela, mas com:
+   - largura fixa adequada ao papel (A3 paisagem ≈ 1587px @96dpi, A4 retrato ≈ 794px, etc.),
+   - cabeçalho opcional no topo,
+   - sem interações (botões/dropdowns).
+2. Montar via `createRoot` em um nó escondido (`position:fixed; left:-99999px`), aguardar fontes (`document.fonts.ready`).
+3. `html2canvas-pro` (suporta `oklch` do Tailwind v4) → `canvas.toDataURL('image/png')`.
+4. Dividir a imagem em páginas no `jsPDF` respeitando orientação/tamanho, com margem que **evita cortes de linha**: medir a altura de cada bloco de programa (data-attrs no DOM) e quebrar entre blocos; repetir o cabeçalho de colunas no topo de cada página.
+5. Salvar com o nome gerado.
 
-Encode na URL via `validateSearch` no layout `gestao.tsx`:
-`periodo` (preset: hoje/semana/mês/customizado + `from`/`to`), `conteudo_id`, `programa_id`, `ilha_id`, `pessoa_id`, `status`.
+Modo Escala Filtrada no PDF: renderiza tabela simples (sem grade) — mesma técnica.
 
-Hook `useGestaoFiltros()` lê de `Route.useSearch()`; barra de filtros faz `navigate({ search: prev => ... })`. Todos os queries (`escalas`, `ferias`, `licencas`, `ocorrencias`) recebem o range e filtros.
+## 4. Nome do arquivo
 
-### 4. Dashboards
+Helper `buildFileName({ formato, conteudos, periodo })`:
+- Sem filtro de conteúdo: `Escala_Operacional_<MesAno>.xlsx`
+- 1 conteúdo: `Escala_Operacional_<Conteudo>_<MesAno>.pdf`
+- Período arbitrário: `Escala_Operacional_<Conteudo>_<dd-MM-yyyy>_<dd-MM-yyyy>.pdf`
 
-Cálculos no cliente sobre os dados já carregados (TanStack Query).
+## 5. Integração
 
-- **Visão Geral** — KPIs: ativos, alocados hoje, folga hoje, férias, licenças, ocorrências abertas, **taxa de ocupação** (horas alocadas ÷ horas disponíveis no período) com comparativo vs. período anterior. Gráfico de linha de ocupação diária.
-- **Pessoas** — Tabela por colaborador com folgas (mês/acumulado), status de férias, licenças ativas, ocorrências. Painel lateral abre histórico + **CRUD de ocorrências** (criar/resolver/arquivar).
-- **Operação** — Barras: alocação por programa, por ilha. Ranking de colaboradores (mais/menos alocados, sem alocação). Linha: escalas por dia/semana/mês (toggle).
-- **Conteúdos** — Cards por `tipos_conteudo` com programas, pessoas, escalas, horas, ocorrências, férias, licenças. Pizza (distribuição equipe) + barras comparativas (horas por conteúdo).
-- **Planejamento** — Capacidade (disponível/alocado/livre + %) por dia/semana/mês. **Mapa de cobertura**: programas onde só 1 pessoa atua = alto risco; 2 = médio; 3+ = baixo. Calendário de férias futuras + lista de licenças/ausências programadas.
+Em `src/routes/index.tsx`:
+- Estado `exportOpen`.
+- Botão "Exportar" abre o modal (não exporta direto).
+- Modal recebe `pessoas`, `programas`, `ilhas`, `conteudos`, `escalas` (do range escolhido — recarregadas via `useQuery(escalasQuery(inicio, fim))` dentro do modal quando o período muda), filtros iniciais e a função de geração.
 
-### Detalhes técnicos
+## Detalhes técnicos
 
-- Cálculo de horas: `hora_fim - hora_inicio` por escala com `status='Trabalhando'`. Horas disponíveis = `pessoas ativas × 8h × dias úteis no período` (configurável, começa em 8h).
-- Cores e tokens semânticos via `src/styles.css` (sem cores hardcoded). Gráficos com `recharts` (já no projeto via shadcn `chart.tsx`).
-- Queries novas em `src/lib/queries.ts`: `feriasQuery(from,to)`, `licencasQuery(from,to)`. `ocorrenciasQuery` já existe.
-- Subagentes em paralelo para acelerar: (a) migração + queries, (b) layout/filtros/sidebar, (c) cada dashboard. Dashboards compartilham `KpiCard`, `DashboardSection`, `useGestaoData()` em `src/components/gestao/`.
-- Nada nas rotas existentes (`/`, `/pessoas`, `/programas`, etc.) é tocado.
+- Dependências novas: `xlsx-js-style`, `jspdf`, `html2canvas-pro`.
+- Reaproveitar `cellText`, `hexToSoftBg`, `contrastText` de `lib/domain.ts` / export-excel.
+- Tudo client-side; nenhum server function novo.
+- Multi-select reutiliza `Popover` + `Checkbox` existentes (sem nova lib).
+- Acessibilidade: labels nos campos, foco inicial no primeiro select, `Esc` fecha.
 
-### Fora do escopo (mencionado no PRD como “futuro”)
+## Fora do escopo
 
-- Exportação para Excel dos dashboards (a infra `export-excel.ts` existe; adiciono botão depois se quiser).
-- Cadastro de Férias/Licenças com formulário completo: começo com CRUD mínimo de Ocorrências (parte do Dashboard 2). Posso estender em iteração seguinte.
-
-Confirma para eu implementar?
+- Persistir presets de exportação.
+- Autenticação para popular "usuário responsável" automaticamente (campo continua editável manual).
+- Agendamento de exportações.

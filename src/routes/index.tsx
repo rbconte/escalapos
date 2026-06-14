@@ -71,7 +71,7 @@ import {
   rangeLabel,
   shiftAnchor,
 } from "@/lib/dates";
-import { exportEscalaToExcel } from "@/lib/export-excel";
+import { ExportEscalaModal } from "@/components/escala/export-modal";
 import {
   notificarResumoOcorrencias,
   reprocessarOcorrencias,
@@ -118,6 +118,8 @@ function EscalaPage() {
   const [view, setView] = useState<ViewMode>("Semanal");
   const [anchor, setAnchor] = useState<Date>(new Date());
   const [modal, setModal] = useState<EscalaModalState>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportRange, setExportRange] = useState<{ start: Date; end: Date } | null>(null);
 
   // Drag & drop: copy an existing allocation onto another person / day.
   const [dragEscala, setDragEscala] = useState<EscalaCompleta | null>(null);
@@ -190,6 +192,14 @@ function EscalaPage() {
   const days = useMemo(() => daysInRange(start, end), [start, end]);
 
   const { data: escalas = [] } = useQuery(escalasQuery(ISO(start), ISO(end)));
+
+  // Escalas for the export modal (may cover a wider range than the visible view).
+  const exportFrom = exportRange ? ISO(exportRange.start) : ISO(start);
+  const exportTo = exportRange ? ISO(exportRange.end) : ISO(end);
+  const { data: exportEscalas = [] } = useQuery({
+    ...escalasQuery(exportFrom, exportTo),
+    enabled: exportOpen,
+  });
 
   const pessoaById = useMemo(
     () => new Map(pessoas.map((p) => [p.id, p])),
@@ -481,20 +491,8 @@ function EscalaPage() {
               </Button>
             </div>
 
-            <Button
-              variant="outline"
-              onClick={() =>
-                exportEscalaToExcel({
-                  pessoas: filteredPessoas,
-                  days,
-                  byCell,
-                  view,
-                  anchor,
-                })
-              }
-              disabled={filteredPessoas.length === 0}
-            >
-              <Download className="h-4 w-4" /> Exportar Excel
+            <Button variant="outline" onClick={() => setExportOpen(true)}>
+              <Download className="h-4 w-4" /> Exportar
             </Button>
 
             <OcorrenciasButton
@@ -767,6 +765,25 @@ function EscalaPage() {
         open={painelOpen}
         onOpenChange={setPainelOpen}
         ocorrencias={ocorrencias}
+      />
+
+      <ExportEscalaModal
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        inicio={start}
+        fim={end}
+        pessoas={pessoas}
+        programas={programas}
+        ilhas={ilhas}
+        conteudos={conteudos}
+        escalas={exportEscalas}
+        initialFilters={{
+          conteudos: fConteudo !== ALL ? [fConteudo] : [],
+          programas: fPrograma !== ALL ? [fPrograma] : [],
+          ilhas: fIlha !== ALL ? [fIlha] : [],
+          pessoas: [],
+        }}
+        onRangeChange={(a, b) => setExportRange({ start: a, end: b })}
       />
     </div>
   );
