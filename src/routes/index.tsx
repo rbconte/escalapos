@@ -193,6 +193,14 @@ function EscalaPage() {
 
   const { data: escalas = [] } = useQuery(escalasQuery(ISO(start), ISO(end)));
 
+  // Escalas for the export modal (may cover a wider range than the visible view).
+  const exportFrom = exportRange ? ISO(exportRange.start) : ISO(start);
+  const exportTo = exportRange ? ISO(exportRange.end) : ISO(end);
+  const { data: exportEscalas = [] } = useQuery({
+    ...escalasQuery(exportFrom, exportTo),
+    enabled: exportOpen,
+  });
+
   const pessoaById = useMemo(
     () => new Map(pessoas.map((p) => [p.id, p])),
     [pessoas],
