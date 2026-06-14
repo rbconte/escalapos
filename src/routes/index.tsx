@@ -71,7 +71,7 @@ import {
   rangeLabel,
   shiftAnchor,
 } from "@/lib/dates";
-import { exportEscalaToExcel } from "@/lib/export-excel";
+import { ExportEscalaModal } from "@/components/escala/export-modal";
 import {
   notificarResumoOcorrencias,
   reprocessarOcorrencias,
@@ -118,6 +118,8 @@ function EscalaPage() {
   const [view, setView] = useState<ViewMode>("Semanal");
   const [anchor, setAnchor] = useState<Date>(new Date());
   const [modal, setModal] = useState<EscalaModalState>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportRange, setExportRange] = useState<{ start: Date; end: Date } | null>(null);
 
   // Drag & drop: copy an existing allocation onto another person / day.
   const [dragEscala, setDragEscala] = useState<EscalaCompleta | null>(null);
@@ -481,20 +483,8 @@ function EscalaPage() {
               </Button>
             </div>
 
-            <Button
-              variant="outline"
-              onClick={() =>
-                exportEscalaToExcel({
-                  pessoas: filteredPessoas,
-                  days,
-                  byCell,
-                  view,
-                  anchor,
-                })
-              }
-              disabled={filteredPessoas.length === 0}
-            >
-              <Download className="h-4 w-4" /> Exportar Excel
+            <Button variant="outline" onClick={() => setExportOpen(true)}>
+              <Download className="h-4 w-4" /> Exportar
             </Button>
 
             <OcorrenciasButton
