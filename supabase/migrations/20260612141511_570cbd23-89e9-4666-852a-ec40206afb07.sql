@@ -1,0 +1,3 @@
+ALTER TABLE public.tipos_conteudo
+  ADD COLUMN IF NOT EXISTS cor text NOT NULL DEFAULT '#64748b',
+  ADD COLUMN IF NOT EXISTS ativo boolean NOT NULL DEFAULT true;
