@@ -2,6 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import {
   BarChart3,
   Briefcase,
+  CalendarCheck,
   CalendarRange,
   CalendarSearch,
   LayoutGrid,
@@ -10,6 +11,7 @@ import {
   Users,
   Users2,
 } from "lucide-react";
+
 
 import {
   Sidebar,
