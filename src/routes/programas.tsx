@@ -34,12 +34,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { conteudosQuery, programasQuery } from "@/lib/queries";
+import { conteudosQuery, programaNecessidadesQuery, programasQuery } from "@/lib/queries";
 import {
   PROGRAMA_CORES,
   contrastText,
   type ProgramaComConteudo,
 } from "@/lib/domain";
+
+const DIAS_SEMANA = [
+  { idx: 1, label: "Segunda" },
+  { idx: 2, label: "Terça" },
+  { idx: 3, label: "Quarta" },
+  { idx: 4, label: "Quinta" },
+  { idx: 5, label: "Sexta" },
+  { idx: 6, label: "Sábado" },
+  { idx: 0, label: "Domingo" },
+] as const;
+
 
 const NONE = "__none__";
 
