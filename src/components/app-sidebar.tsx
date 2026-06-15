@@ -27,7 +27,9 @@ import {
 
 const operacional = [
   { title: "Escala Operacional", url: "/", icon: CalendarRange, exact: true },
+  { title: "Planejamento Macro", url: "/planejamento", icon: CalendarCheck },
   { title: "Pessoas", url: "/pessoas", icon: Users },
+
   { title: "Funções", url: "/funcoes", icon: Briefcase },
   { title: "Conteúdos", url: "/conteudos", icon: Layers },
   { title: "Programas", url: "/programas", icon: Tv },
