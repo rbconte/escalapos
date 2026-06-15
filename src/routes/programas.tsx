@@ -107,22 +107,37 @@ function ProgramasPage() {
         cor,
         tipo_conteudo_id: conteudoId === NONE ? null : conteudoId,
       };
+      let programaId = editing?.id;
       if (editing) {
         const { error } = await supabase.from("programas").update(payload).eq("id", editing.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("programas").insert(payload);
+        const { data, error } = await supabase.from("programas").insert(payload).select("id").single();
         if (error) throw error;
+        programaId = data.id;
+      }
+      if (programaId) {
+        const rows = Object.entries(necessidade).map(([d, q]) => ({
+          programa_id: programaId!,
+          dia_semana: Number(d),
+          quantidade: Number.isFinite(q) ? Math.max(0, Math.floor(q)) : 0,
+        }));
+        const { error: nErr } = await supabase
+          .from("programa_necessidades")
+          .upsert(rows, { onConflict: "programa_id,dia_semana" });
+        if (nErr) throw nErr;
       }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["programas"] });
+      qc.invalidateQueries({ queryKey: ["programa_necessidades"] });
       qc.invalidateQueries({ queryKey: ["escalas"] });
       setOpen(false);
       toast.success(editing ? "Programa atualizado." : "Programa criado.");
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
 
   const remove = useMutation({
     mutationFn: async (id: string) => {
