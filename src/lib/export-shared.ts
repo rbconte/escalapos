@@ -119,7 +119,7 @@ export function buildGrupos(
       const info = cKey !== SEM_CONTEUDO ? conteudoInfo.get(cKey) : undefined;
       cg = {
         key: cKey,
-        nome: info?.nome ?? "Sem conteúdo",
+        nome: info?.nome ?? "Outras Alocações",
         cor: info?.cor ?? "#94a3b8",
         ordem: info?.ordem ?? 99999,
         programas: [],
