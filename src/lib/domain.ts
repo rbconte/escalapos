@@ -102,7 +102,28 @@ export const STATUS_META: Record<
     dot: "bg-warning",
     chip: "bg-warning/15 text-warning-foreground border-warning/30",
   },
+  Treinamento: {
+    label: "Treinamento",
+    dot: "bg-purple-500",
+    chip: "bg-purple-500/10 text-purple-600 border-purple-500/20",
+  },
+  "Banco de Horas": {
+    label: "Banco de Horas",
+    dot: "bg-amber-500",
+    chip: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+  },
+  Afastamento: {
+    label: "Afastamento",
+    dot: "bg-slate-500",
+    chip: "bg-slate-500/10 text-slate-600 border-slate-500/20",
+  },
+  Outros: {
+    label: "Outros",
+    dot: "bg-slate-600",
+    chip: "bg-slate-600/10 text-slate-700 border-slate-600/20",
+  },
 };
+
 
 /** Returns a readable text color (#fff or dark) for a given hex background. */
 export function contrastText(hex: string): string {
