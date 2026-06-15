@@ -24,11 +24,27 @@ export const STATUS_ESCALA = [
   "Folga",
   "Folga Aniversário",
   "Folga Domingo",
+  "Folga Semanal",
   "Licença",
   "Férias",
-  "Folga Semanal",
+  "Treinamento",
+  "Banco de Horas",
+  "Afastamento",
+  "Outros",
 ] as const;
 export type StatusEscala = (typeof STATUS_ESCALA)[number];
+
+/** Status especiais (sem programa) usados no Planejamento Macro. */
+export const SITUACOES_ESPECIAIS = [
+  { key: "Folga", label: "Folga", cor: "#94a3b8" },
+  { key: "Férias", label: "Férias", cor: "#0ea5e9" },
+  { key: "Licença", label: "Licença", cor: "#ef4444" },
+  { key: "Treinamento", label: "Treinamento", cor: "#a855f7" },
+  { key: "Banco de Horas", label: "Banco de Horas", cor: "#f59e0b" },
+  { key: "Afastamento", label: "Afastamento", cor: "#64748b" },
+  { key: "Outros", label: "Outros", cor: "#475569" },
+] as const;
+
 
 export const STATUS_PESSOA = ["Ativo", "Inativo", "Férias"] as const;
 
