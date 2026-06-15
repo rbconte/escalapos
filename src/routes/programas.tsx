@@ -83,6 +83,10 @@ function ProgramasPage() {
   const [cor, setCor] = useState(PROGRAMA_CORES[0]);
   const [conteudoId, setConteudoId] = useState(NONE);
   const [toDelete, setToDelete] = useState<ProgramaComConteudo | null>(null);
+  const [necessidade, setNecessidade] = useState<Record<number, number>>({
+    0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0,
+  });
+
 
   const filtered = useMemo(
     () =>
