@@ -58,6 +58,22 @@ export const programasQuery = () =>
     },
   });
 
+export type ProgramaNecessidade = Tables<"programa_necessidades">;
+
+/** Returns a map: programa_id -> { [dia_semana 0..6]: quantidade }. */
+export const programaNecessidadesQuery = () =>
+  queryOptions({
+    queryKey: ["programa_necessidades"],
+    queryFn: async (): Promise<ProgramaNecessidade[]> => {
+      const { data, error } = await supabase
+        .from("programa_necessidades")
+        .select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+
 export const ilhasQuery = () =>
   queryOptions({
     queryKey: ["ilhas"],
