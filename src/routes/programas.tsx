@@ -64,6 +64,7 @@ export const Route = createFileRoute("/programas")({
   loader: ({ context }) => {
     context.queryClient.ensureQueryData(programasQuery());
     context.queryClient.ensureQueryData(conteudosQuery());
+    context.queryClient.ensureQueryData(programaNecessidadesQuery());
   },
   component: ProgramasPage,
 });
@@ -71,6 +72,8 @@ export const Route = createFileRoute("/programas")({
 function ProgramasPage() {
   const { data: programas } = useSuspenseQuery(programasQuery());
   const { data: conteudos } = useSuspenseQuery(conteudosQuery());
+  const { data: necessidades } = useSuspenseQuery(programaNecessidadesQuery());
+
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
