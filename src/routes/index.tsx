@@ -289,25 +289,23 @@ function EscalaPage() {
     );
     const cmap = new Map<string, CG>();
 
-    for (const e of escalas) {
-      if (!passaFiltros(e)) continue;
-      const pessoa = pessoaById.get(e.pessoa_id);
-      if (!pessoa) continue;
-
-      const cKey = conteudoKeyOf(e);
+    function ensureCG(cKey: string): CG {
       let cg = cmap.get(cKey);
       if (!cg) {
         const info = cKey !== SEM_CONTEUDO ? conteudoInfo.get(cKey) : undefined;
         cg = {
           key: cKey,
-          nome: info?.nome ?? "Sem conteúdo",
+          nome: info?.nome ?? "Outras Alocações",
           cor: info?.cor ?? "#94a3b8",
           ordem: info?.ordem ?? 99999,
           programas: new Map(),
         };
         cmap.set(cKey, cg);
       }
+      return cg;
+    }
 
+    function ensurePG(cg: CG, e: EscalaCompleta): PG {
       const pKey = e.programa_id ?? SEM_PROGRAMA;
       let pg = cg.programas.get(pKey);
       if (!pg) {
@@ -326,7 +324,10 @@ function EscalaPage() {
             };
         cg.programas.set(pKey, pg);
       }
+      return pg;
+    }
 
+    function pushCell(pg: PG, e: EscalaCompleta) {
       let cell = pg.pessoas.get(e.pessoa_id);
       if (!cell) {
         cell = new Map();
@@ -335,6 +336,44 @@ function EscalaPage() {
       const arr = cell.get(e.data) ?? [];
       arr.push(e);
       cell.set(e.data, arr);
+    }
+
+    // Status (sem programa) — exibidos em "Outras Alocações" e também
+    // duplicados na linha do último programa em que a pessoa esteve.
+    const statusEscalas: EscalaCompleta[] = [];
+    const ultimoProgPorPessoa = new Map<
+      string,
+      { data: string; escala: EscalaCompleta }
+    >();
+
+    for (const e of escalas) {
+      if (!passaFiltros(e)) continue;
+      const pessoa = pessoaById.get(e.pessoa_id);
+      if (!pessoa) continue;
+
+      const cKey = conteudoKeyOf(e);
+      const cg = ensureCG(cKey);
+      const pg = ensurePG(cg, e);
+      pushCell(pg, e);
+
+      if (e.programa_id && e.programa) {
+        const prev = ultimoProgPorPessoa.get(e.pessoa_id);
+        if (!prev || e.data >= prev.data) {
+          ultimoProgPorPessoa.set(e.pessoa_id, { data: e.data, escala: e });
+        }
+      } else {
+        statusEscalas.push(e);
+      }
+    }
+
+    for (const e of statusEscalas) {
+      const ref = ultimoProgPorPessoa.get(e.pessoa_id);
+      if (!ref) continue;
+      const refE = ref.escala;
+      const cKey = conteudoKeyOf(refE);
+      const cg = ensureCG(cKey);
+      const pg = ensurePG(cg, refE);
+      pushCell(pg, e);
     }
 
     const ordemPessoa = (id: string): [number, string] => {
