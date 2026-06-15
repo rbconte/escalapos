@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as ProgramasRouteImport } from './routes/programas'
+import { Route as PlanejamentoRouteImport } from './routes/planejamento'
 import { Route as PessoasRouteImport } from './routes/pessoas'
 import { Route as IlhasRouteImport } from './routes/ilhas'
 import { Route as GestaoRouteImport } from './routes/gestao'
@@ -31,6 +32,11 @@ const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
 const ProgramasRoute = ProgramasRouteImport.update({
   id: '/programas',
   path: '/programas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlanejamentoRoute = PlanejamentoRouteImport.update({
+  id: '/planejamento',
+  path: '/planejamento',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PessoasRoute = PessoasRouteImport.update({
@@ -96,6 +102,7 @@ export interface FileRoutesByFullPath {
   '/gestao': typeof GestaoRouteWithChildren
   '/ilhas': typeof IlhasRoute
   '/pessoas': typeof PessoasRoute
+  '/planejamento': typeof PlanejamentoRoute
   '/programas': typeof ProgramasRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/gestao/conteudos': typeof GestaoConteudosRoute
@@ -110,6 +117,7 @@ export interface FileRoutesByTo {
   '/funcoes': typeof FuncoesRoute
   '/ilhas': typeof IlhasRoute
   '/pessoas': typeof PessoasRoute
+  '/planejamento': typeof PlanejamentoRoute
   '/programas': typeof ProgramasRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/gestao/conteudos': typeof GestaoConteudosRoute
@@ -126,6 +134,7 @@ export interface FileRoutesById {
   '/gestao': typeof GestaoRouteWithChildren
   '/ilhas': typeof IlhasRoute
   '/pessoas': typeof PessoasRoute
+  '/planejamento': typeof PlanejamentoRoute
   '/programas': typeof ProgramasRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/gestao/conteudos': typeof GestaoConteudosRoute
@@ -143,6 +152,7 @@ export interface FileRouteTypes {
     | '/gestao'
     | '/ilhas'
     | '/pessoas'
+    | '/planejamento'
     | '/programas'
     | '/sitemap.xml'
     | '/gestao/conteudos'
@@ -157,6 +167,7 @@ export interface FileRouteTypes {
     | '/funcoes'
     | '/ilhas'
     | '/pessoas'
+    | '/planejamento'
     | '/programas'
     | '/sitemap.xml'
     | '/gestao/conteudos'
@@ -172,6 +183,7 @@ export interface FileRouteTypes {
     | '/gestao'
     | '/ilhas'
     | '/pessoas'
+    | '/planejamento'
     | '/programas'
     | '/sitemap.xml'
     | '/gestao/conteudos'
@@ -188,6 +200,7 @@ export interface RootRouteChildren {
   GestaoRoute: typeof GestaoRouteWithChildren
   IlhasRoute: typeof IlhasRoute
   PessoasRoute: typeof PessoasRoute
+  PlanejamentoRoute: typeof PlanejamentoRoute
   ProgramasRoute: typeof ProgramasRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
 }
@@ -206,6 +219,13 @@ declare module '@tanstack/react-router' {
       path: '/programas'
       fullPath: '/programas'
       preLoaderRoute: typeof ProgramasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/planejamento': {
+      id: '/planejamento'
+      path: '/planejamento'
+      fullPath: '/planejamento'
+      preLoaderRoute: typeof PlanejamentoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pessoas': {
@@ -314,6 +334,7 @@ const rootRouteChildren: RootRouteChildren = {
   GestaoRoute: GestaoRouteWithChildren,
   IlhasRoute: IlhasRoute,
   PessoasRoute: PessoasRoute,
+  PlanejamentoRoute: PlanejamentoRoute,
   ProgramasRoute: ProgramasRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
 }

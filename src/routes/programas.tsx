@@ -34,12 +34,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { conteudosQuery, programasQuery } from "@/lib/queries";
+import { conteudosQuery, programaNecessidadesQuery, programasQuery } from "@/lib/queries";
 import {
   PROGRAMA_CORES,
   contrastText,
   type ProgramaComConteudo,
 } from "@/lib/domain";
+
+const DIAS_SEMANA = [
+  { idx: 1, label: "Segunda" },
+  { idx: 2, label: "Terça" },
+  { idx: 3, label: "Quarta" },
+  { idx: 4, label: "Quinta" },
+  { idx: 5, label: "Sexta" },
+  { idx: 6, label: "Sábado" },
+  { idx: 0, label: "Domingo" },
+] as const;
+
 
 const NONE = "__none__";
 
@@ -53,6 +64,7 @@ export const Route = createFileRoute("/programas")({
   loader: ({ context }) => {
     context.queryClient.ensureQueryData(programasQuery());
     context.queryClient.ensureQueryData(conteudosQuery());
+    context.queryClient.ensureQueryData(programaNecessidadesQuery());
   },
   component: ProgramasPage,
 });
@@ -60,6 +72,8 @@ export const Route = createFileRoute("/programas")({
 function ProgramasPage() {
   const { data: programas } = useSuspenseQuery(programasQuery());
   const { data: conteudos } = useSuspenseQuery(conteudosQuery());
+  const { data: necessidades } = useSuspenseQuery(programaNecessidadesQuery());
+
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
@@ -69,6 +83,10 @@ function ProgramasPage() {
   const [cor, setCor] = useState(PROGRAMA_CORES[0]);
   const [conteudoId, setConteudoId] = useState(NONE);
   const [toDelete, setToDelete] = useState<ProgramaComConteudo | null>(null);
+  const [necessidade, setNecessidade] = useState<Record<number, number>>({
+    0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0,
+  });
+
 
   const filtered = useMemo(
     () =>
@@ -89,22 +107,37 @@ function ProgramasPage() {
         cor,
         tipo_conteudo_id: conteudoId === NONE ? null : conteudoId,
       };
+      let programaId = editing?.id;
       if (editing) {
         const { error } = await supabase.from("programas").update(payload).eq("id", editing.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("programas").insert(payload);
+        const { data, error } = await supabase.from("programas").insert(payload).select("id").single();
         if (error) throw error;
+        programaId = data.id;
+      }
+      if (programaId) {
+        const rows = Object.entries(necessidade).map(([d, q]) => ({
+          programa_id: programaId!,
+          dia_semana: Number(d),
+          quantidade: Number.isFinite(q) ? Math.max(0, Math.floor(q)) : 0,
+        }));
+        const { error: nErr } = await supabase
+          .from("programa_necessidades")
+          .upsert(rows, { onConflict: "programa_id,dia_semana" });
+        if (nErr) throw nErr;
       }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["programas"] });
+      qc.invalidateQueries({ queryKey: ["programa_necessidades"] });
       qc.invalidateQueries({ queryKey: ["escalas"] });
       setOpen(false);
       toast.success(editing ? "Programa atualizado." : "Programa criado.");
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
 
   const remove = useMutation({
     mutationFn: async (id: string) => {
@@ -120,12 +153,23 @@ function ProgramasPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  function loadNecessidade(programaId: string | null) {
+    const base: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+    if (programaId) {
+      for (const n of necessidades.filter((x) => x.programa_id === programaId)) {
+        base[n.dia_semana] = n.quantidade;
+      }
+    }
+    setNecessidade(base);
+  }
+
   function openNew() {
     setEditing(null);
     setNome("");
     setSigla("");
     setCor(PROGRAMA_CORES[Math.floor(Math.random() * PROGRAMA_CORES.length)]);
     setConteudoId(NONE);
+    loadNecessidade(null);
     setOpen(true);
   }
   function openEdit(p: ProgramaComConteudo) {
@@ -134,8 +178,10 @@ function ProgramasPage() {
     setSigla(p.sigla ?? "");
     setCor(p.cor);
     setConteudoId(p.tipo_conteudo_id ?? NONE);
+    loadNecessidade(p.id);
     setOpen(true);
   }
+
 
 
   return (
@@ -291,7 +337,35 @@ function ProgramasPage() {
                 </label>
               </div>
             </div>
+
+            <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+              <div>
+                <Label className="font-semibold">Necessidade Operacional</Label>
+                <p className="text-xs text-muted-foreground">
+                  Quantidade necessária por dia da semana (cobertura mínima).
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {DIAS_SEMANA.map((d) => (
+                  <div key={d.idx} className="space-y-1">
+                    <Label className="text-xs">{d.label}</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={necessidade[d.idx] ?? 0}
+                      onChange={(e) =>
+                        setNecessidade((prev) => ({
+                          ...prev,
+                          [d.idx]: Math.max(0, Number(e.target.value) || 0),
+                        }))
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancelar
