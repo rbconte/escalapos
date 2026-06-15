@@ -337,7 +337,35 @@ function ProgramasPage() {
                 </label>
               </div>
             </div>
+
+            <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+              <div>
+                <Label className="font-semibold">Necessidade Operacional</Label>
+                <p className="text-xs text-muted-foreground">
+                  Quantidade necessária por dia da semana (cobertura mínima).
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {DIAS_SEMANA.map((d) => (
+                  <div key={d.idx} className="space-y-1">
+                    <Label className="text-xs">{d.label}</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={necessidade[d.idx] ?? 0}
+                      onChange={(e) =>
+                        setNecessidade((prev) => ({
+                          ...prev,
+                          [d.idx]: Math.max(0, Number(e.target.value) || 0),
+                        }))
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancelar
