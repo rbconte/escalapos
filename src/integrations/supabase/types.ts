@@ -285,6 +285,41 @@ export type Database = {
           },
         ]
       }
+      programa_necessidades: {
+        Row: {
+          created_at: string
+          dia_semana: number
+          id: string
+          programa_id: string
+          quantidade: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          dia_semana: number
+          id?: string
+          programa_id: string
+          quantidade?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          dia_semana?: number
+          id?: string
+          programa_id?: string
+          quantidade?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "programa_necessidades_programa_id_fkey"
+            columns: ["programa_id"]
+            isOneToOne: false
+            referencedRelation: "programas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       programas: {
         Row: {
           cor: string

@@ -1,84 +1,81 @@
-# Exportação avançada da Escala Operacional
+## Planejamento Macro — Plano de Implementação
 
-Substituir o botão atual "Exportar Excel" (que baixa imediatamente) por um modal **Exportar Escala** que permite configurar formato, período, filtros e layout antes de gerar o arquivo.
+Novo módulo gerencial sincronizado com a Escala Operacional, compartilhando a mesma tabela `escalas` (sem duplicação de dados).
 
-## 1. UI — Modal "Exportar Escala"
+### 1. Banco de dados (migração)
 
-Novo componente `src/components/escala/export-modal.tsx` aberto pelo botão "Exportar" em `src/routes/index.tsx`.
+**Nova tabela `programa_necessidades`** — quantidade necessária por programa e dia da semana:
+- `programa_id` (FK), `dia_semana` (0=Dom … 6=Sáb), `quantidade` (int)
+- Unique(programa_id, dia_semana)
+- RLS público (mesmo padrão das outras tabelas)
 
-Seções do modal (Dialog do shadcn, scroll interno):
+**Status especiais** já existem em `escalas.status` (Folga, Férias, Licença, etc.). Vamos ampliar/normalizar a lista para incluir: Trabalhando, Folga, Férias, Licença, Treinamento, Banco de Horas, Afastamento, Outros. Cada situação tem cor própria (definida em `lib/domain.ts`, não no banco — mantém simplicidade).
 
-1. **Formato** — Tabs/RadioGroup: `Excel (.xlsx)` | `PDF (.pdf)`.
-2. **Período** — dois date pickers (Data inicial / Data final). Pré-preenchidos com o intervalo da view atual (`rangeForView(anchor, view)`).
-3. **Tipo de exportação** — RadioGroup:
-   - `Escala Completa` — replica o layout visual (agrupado por Conteúdo → Programa, todos os colaboradores do grupo, colunas = dias).
-   - `Escala Filtrada` — lista plana apenas dos registros que passam nos filtros.
-4. **Filtros** (multi-select com opção "Todos"):
-   - Conteúdo (lista fixa: Jornalismo, Esporte, Entretenimento, Magazines, Promoções, Documentários, Outros — derivada de `conteudos` ativos + "Outros").
-   - Programa (de `programas`).
-   - Colaborador (de `pessoas`).
-   - Ilha (de `ilhas`).
-   Cada filtro usa um Popover com checkboxes + botão "Todos".
-5. **Opções PDF** (visíveis só quando formato = PDF):
-   - Orientação: `Retrato` | `Paisagem` (default Paisagem).
-   - Tamanho: `A4` | `A3` (default A3).
-   - Switch **Exibir cabeçalho** (default ligado) com campos auto-preenchidos: empresa, nome do relatório, data de geração, período, usuário responsável (input de texto editável).
-6. **Resumo** — bloco final com contagem: "X colaboradores · Y alocações · Z dias". Botões: `Cancelar` / `Exportar`.
+### 2. Modelo de dados / sincronização
 
-Pré-seleção: os filtros do modal começam com os filtros atualmente aplicados na tela.
+Sem cadastro paralelo. O Planejamento Macro **lê e escreve diretamente em `escalas`**:
 
-## 2. Geração Excel — `src/lib/export-excel.ts` (refatorar)
+- Célula com **Produto (programa)** → cria/atualiza `escalas` com `pessoa_id`, `data`, `programa_id`, demais campos (`hora_inicio`, `hora_fim`, `ilha_id`, `modalidade`, `observacao`) ficam em branco.
+- Célula com **Situação Especial** → cria `escalas` com `status` correspondente e `programa_id = NULL`.
+- Apagar célula → remove a linha de `escalas`.
 
-Usar `xlsx-js-style` (fork de `xlsx` com suporte a estilos de célula — `xlsx` puro não preserva cores) para escrever cores/agrupamentos. Adicionar como dependência.
+A Escala Operacional já lê de `escalas`, então a sincronização é automática via React Query (invalidação compartilhada de `["escalas"]`).
 
-Estrutura do arquivo (modo Escala Completa):
-- Linha 1: título mesclado (nome do relatório + período).
-- Linha 2: cabeçalho — `Colaborador`, `Função`, depois 1 coluna por dia (`EEE dd/MM`).
-- Para cada **Conteúdo**: linha mesclada com cor de fundo = `conteudo.cor`.
-  - Para cada **Programa**: linha mesclada com cor suave = `hexToSoftBg(programa.cor)`.
-    - Linhas dos colaboradores com células contendo `cellText()` e fundo = cor do programa.
-- Painel congelado nas 2 primeiras colunas + 2 primeiras linhas (`!freeze`).
-- Larguras automáticas (cálculo simples baseado no maior texto).
-- Modo Escala Filtrada: tabela plana (Data, Colaborador, Função, Conteúdo, Programa, Ilha, Início, Fim, Modalidade, Status).
+### 3. Evolução do cadastro de Programas (`/programas`)
 
-## 3. Geração PDF — novo `src/lib/export-pdf.ts`
+Adicionar seção **"Necessidade Operacional"** no modal de criar/editar programa:
+- 7 inputs numéricos (Seg→Dom), com defaults 0
+- Salvo em `programa_necessidades` no mesmo submit
+- Carregado ao editar
 
-Para fidelidade visual, renderizar o DOM da escala filtrada com **html2canvas-pro** + **jspdf**:
-1. Construir, off-screen, um componente `<EscalaPrintable>` (em `src/components/escala/escala-printable.tsx`) que renderiza a grade exatamente como na tela, mas com:
-   - largura fixa adequada ao papel (A3 paisagem ≈ 1587px @96dpi, A4 retrato ≈ 794px, etc.),
-   - cabeçalho opcional no topo,
-   - sem interações (botões/dropdowns).
-2. Montar via `createRoot` em um nó escondido (`position:fixed; left:-99999px`), aguardar fontes (`document.fonts.ready`).
-3. `html2canvas-pro` (suporta `oklch` do Tailwind v4) → `canvas.toDataURL('image/png')`.
-4. Dividir a imagem em páginas no `jsPDF` respeitando orientação/tamanho, com margem que **evita cortes de linha**: medir a altura de cada bloco de programa (data-attrs no DOM) e quebrar entre blocos; repetir o cabeçalho de colunas no topo de cada página.
-5. Salvar com o nome gerado.
+### 4. Nova rota `/planejamento`
 
-Modo Escala Filtrada no PDF: renderiza tabela simples (sem grade) — mesma técnica.
+Arquivo `src/routes/planejamento.tsx` + item no `app-sidebar.tsx` (grupo Operacional, abaixo de "Escala Operacional", ícone `CalendarCheck`).
 
-## 4. Nome do arquivo
+**Estrutura visual** (reutiliza padrão de grid da Escala):
+- Linhas: colaboradores agrupados por Conteúdo → Programa (mesma lógica de `grupos` em `index.tsx`)
+- Colunas: dias (Diário/Semanal/Mensal — mesmo toolbar)
+- Cada célula mostra **apenas** sigla do programa OU nome da situação especial, com cor de fundo. Sem horário/ilha/modalidade.
+- Click em célula vazia → popover com seletor (Programas + Situações)
+- Click em célula preenchida → opções "Trocar / Limpar"
 
-Helper `buildFileName({ formato, conteudos, periodo })`:
-- Sem filtro de conteúdo: `Escala_Operacional_<MesAno>.xlsx`
-- 1 conteúdo: `Escala_Operacional_<Conteudo>_<MesAno>.pdf`
-- Período arbitrário: `Escala_Operacional_<Conteudo>_<dd-MM-yyyy>_<dd-MM-yyyy>.pdf`
+**Linha de cobertura** abaixo de cada grupo de Programa:
+- "Necessidade: N | Alocados: X" por dia
+- Por dia da coluna: badge com contagem. Cores:
+  - Alocados < Necessidade → `bg-destructive text-destructive-foreground`
+  - Alocados > Necessidade → `bg-success text-success-foreground` (token novo, ou usar verde)
+  - Igual → cor padrão (muted)
 
-## 5. Integração
+**Resumo por Produto** (rodapé do grupo): Necessidade total no período, Alocados total, Diferença.
 
-Em `src/routes/index.tsx`:
-- Estado `exportOpen`.
-- Botão "Exportar" abre o modal (não exporta direto).
-- Modal recebe `pessoas`, `programas`, `ilhas`, `conteudos`, `escalas` (do range escolhido — recarregadas via `useQuery(escalasQuery(inicio, fim))` dentro do modal quando o período muda), filtros iniciais e a função de geração.
+**Filtros** (toolbar): Conteúdo, Produto, Colaborador, Período (mesmo seletor da Escala).
 
-## Detalhes técnicos
+**Legenda** (rodapé/sidebar): swatches por Conteúdo + situações especiais.
 
-- Dependências novas: `xlsx-js-style`, `jspdf`, `html2canvas-pro`.
-- Reaproveitar `cellText`, `hexToSoftBg`, `contrastText` de `lib/domain.ts` / export-excel.
-- Tudo client-side; nenhum server function novo.
-- Multi-select reutiliza `Popover` + `Checkbox` existentes (sem nova lib).
-- Acessibilidade: labels nos campos, foco inicial no primeiro select, `Esc` fecha.
+### 5. Componentes novos
 
-## Fora do escopo
+- `src/routes/planejamento.tsx` — página principal
+- `src/components/planejamento/cell-picker.tsx` — popover seletor programa/situação
+- `src/components/planejamento/cobertura-row.tsx` — linha de necessidade vs alocado
+- `src/components/planejamento/legenda.tsx`
 
-- Persistir presets de exportação.
-- Autenticação para popular "usuário responsável" automaticamente (campo continua editável manual).
-- Agendamento de exportações.
+### 6. lib/queries.ts
+
+Nova query `programaNecessidadesQuery()` que retorna `Map<programaId, { [dia_semana]: quantidade }>`.
+
+### 7. lib/domain.ts
+
+Constante `SITUACOES_ESPECIAIS` com `{ key, label, cor }` para Folga, Férias, Licença, Treinamento, Banco de Horas, Afastamento, Outros.
+
+### Fora de escopo (não incluído)
+- Drag & drop entre células (a Escala já tem; Macro mantém só click)
+- Edição em massa
+- Histórico/auditoria
+- Cobertura cruzando férias/licenças (cálculo conta apenas alocações em programa)
+
+### Ordem de execução
+1. Migração `programa_necessidades`
+2. `lib/domain.ts` + `lib/queries.ts`
+3. Cadastro de Programas (necessidade)
+4. Rota `/planejamento` + componentes
+5. Item de menu
