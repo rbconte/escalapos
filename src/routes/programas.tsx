@@ -153,12 +153,23 @@ function ProgramasPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  function loadNecessidade(programaId: string | null) {
+    const base: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+    if (programaId) {
+      for (const n of necessidades.filter((x) => x.programa_id === programaId)) {
+        base[n.dia_semana] = n.quantidade;
+      }
+    }
+    setNecessidade(base);
+  }
+
   function openNew() {
     setEditing(null);
     setNome("");
     setSigla("");
     setCor(PROGRAMA_CORES[Math.floor(Math.random() * PROGRAMA_CORES.length)]);
     setConteudoId(NONE);
+    loadNecessidade(null);
     setOpen(true);
   }
   function openEdit(p: ProgramaComConteudo) {
@@ -167,8 +178,10 @@ function ProgramasPage() {
     setSigla(p.sigla ?? "");
     setCor(p.cor);
     setConteudoId(p.tipo_conteudo_id ?? NONE);
+    loadNecessidade(p.id);
     setOpen(true);
   }
+
 
 
   return (
