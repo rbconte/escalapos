@@ -681,8 +681,9 @@ function CellPicker({
                     onClick={() => {
                       setStartISO(iso);
                       setEndISO(iso);
-                      setPeriodPrograma(pr);
                       setOpen(false);
+                      const prog = pr;
+                      setTimeout(() => setPeriodPrograma(prog), 80);
                     }}
                     className="rounded-md border px-2 py-1 text-xs font-semibold transition-transform hover:scale-[1.03]"
                     style={{
