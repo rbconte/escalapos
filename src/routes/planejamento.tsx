@@ -235,7 +235,7 @@ function PlanejamentoPage() {
         const info = key !== SEM_CONTEUDO ? conteudoInfo.get(key) : undefined;
         g = {
           key,
-          nome: info?.nome ?? "Sem conteúdo",
+          nome: info?.nome ?? "Alocações",
           cor: info?.cor ?? "#94a3b8",
           ordem: info?.ordem ?? 99999,
           pessoas: [],
