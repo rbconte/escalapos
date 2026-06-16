@@ -885,7 +885,7 @@ function CoberturaRow({
           <div className="min-w-0">
             <div className="truncate text-xs font-semibold">{programa.nome}</div>
             <div className="text-[10px] text-muted-foreground">
-              Necessidade {totals.need} · Alocados {totals.alloc} ·{" "}
+              Alocados {totals.alloc} · Necessidade {totals.need} ·{" "}
               <span
                 className={cn(
                   "font-semibold",
