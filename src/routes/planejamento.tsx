@@ -135,6 +135,44 @@ function PlanejamentoPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const setRange = useMutation({
+    mutationFn: async (args: {
+      pessoaId: string;
+      startISO: string;
+      endISO: string;
+      programaId: string | null;
+      status: string;
+    }) => {
+      const start = new Date(args.startISO + "T00:00:00");
+      const end = new Date(args.endISO + "T00:00:00");
+      const dates: string[] = [];
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        dates.push(ISO(d));
+      }
+      if (!dates.length) return;
+      const { error: delErr } = await supabase
+        .from("escalas")
+        .delete()
+        .eq("pessoa_id", args.pessoaId)
+        .in("data", dates);
+      if (delErr) throw delErr;
+      const rows = dates.map((data) => ({
+        pessoa_id: args.pessoaId,
+        data,
+        programa_id: args.programaId,
+        modalidade: "TV",
+        status: args.status,
+      }));
+      const { error } = await supabase.from("escalas").insert(rows);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["escalas"] });
+      qc.invalidateQueries({ queryKey: ["ocorrencias"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const clearCell = useMutation({
     mutationFn: async (args: { pessoaId: string; data: string }) => {
       const { error } = await supabase
