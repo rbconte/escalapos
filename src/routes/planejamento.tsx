@@ -18,6 +18,14 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -135,6 +143,44 @@ function PlanejamentoPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const setRange = useMutation({
+    mutationFn: async (args: {
+      pessoaId: string;
+      startISO: string;
+      endISO: string;
+      programaId: string | null;
+      status: string;
+    }) => {
+      const start = new Date(args.startISO + "T00:00:00");
+      const end = new Date(args.endISO + "T00:00:00");
+      const dates: string[] = [];
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        dates.push(ISO(d));
+      }
+      if (!dates.length) return;
+      const { error: delErr } = await supabase
+        .from("escalas")
+        .delete()
+        .eq("pessoa_id", args.pessoaId)
+        .in("data", dates);
+      if (delErr) throw delErr;
+      const rows = dates.map((data) => ({
+        pessoa_id: args.pessoaId,
+        data,
+        programa_id: args.programaId,
+        modalidade: "TV",
+        status: args.status,
+      }));
+      const { error } = await supabase.from("escalas").insert(rows);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["escalas"] });
+      qc.invalidateQueries({ queryKey: ["ocorrencias"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const clearCell = useMutation({
     mutationFn: async (args: { pessoaId: string; data: string }) => {
       const { error } = await supabase
@@ -235,7 +281,7 @@ function PlanejamentoPage() {
         const info = key !== SEM_CONTEUDO ? conteudoInfo.get(key) : undefined;
         g = {
           key,
-          nome: info?.nome ?? "Sem conteúdo",
+          nome: info?.nome ?? "Alocações",
           cor: info?.cor ?? "#94a3b8",
           ordem: info?.ordem ?? 99999,
           pessoas: [],
@@ -520,12 +566,22 @@ function PlanejamentoPage() {
                             style={{ width: colWidth, minWidth: colWidth, height: 44 }}
                           >
                             <CellPicker
+                              iso={iso}
                               cell={cell}
                               programas={programas}
                               onPick={(programaId, status) =>
                                 setCell.mutate({
                                   pessoaId: p.id,
                                   data: iso,
+                                  programaId,
+                                  status,
+                                })
+                              }
+                              onPickRange={(programaId, status, startISO, endISO) =>
+                                setRange.mutate({
+                                  pessoaId: p.id,
+                                  startISO,
+                                  endISO,
                                   programaId,
                                   status,
                                 })
@@ -571,105 +627,177 @@ function PlanejamentoPage() {
 // =============== Cell picker ===============
 
 function CellPicker({
+  iso,
   cell,
   programas,
   onPick,
+  onPickRange,
   onClear,
 }: {
+  iso: string;
   cell: EscalaCompleta | undefined;
   programas: ProgramaComConteudo[];
   onPick: (programaId: string | null, status: string) => void;
+  onPickRange: (
+    programaId: string | null,
+    status: string,
+    startISO: string,
+    endISO: string,
+  ) => void;
   onClear: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [periodPrograma, setPeriodPrograma] = useState<ProgramaComConteudo | null>(
+    null,
+  );
+  const [startISO, setStartISO] = useState(iso);
+  const [endISO, setEndISO] = useState(iso);
 
   const trigger = cell ? <CellChip escala={cell} /> : <EmptyCellButton />;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="block w-full"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {trigger}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-72 p-3" align="start">
-        <div className="space-y-3">
-          <div>
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Produto
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {programas.map((pr) => (
-                <button
-                  key={pr.id}
-                  type="button"
-                  onClick={() => {
-                    onPick(pr.id, "Trabalhando");
-                    setOpen(false);
-                  }}
-                  className="rounded-md border px-2 py-1 text-xs font-semibold transition-transform hover:scale-[1.03]"
-                  style={{
-                    backgroundColor: hexToSoftBg(pr.cor, 0.18),
-                    borderColor: hexToSoftBg(pr.cor, 0.4),
-                    color: pr.cor,
-                  }}
-                  title={pr.nome}
-                >
-                  {pr.sigla || pr.nome}
-                </button>
-              ))}
-              {programas.length === 0 && (
-                <span className="text-xs text-muted-foreground">
-                  Nenhum programa cadastrado.
-                </span>
-              )}
+    <>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="block w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {trigger}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-72 p-3" align="start">
+          <div className="space-y-3">
+            <div>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Produto
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {programas.map((pr) => (
+                  <button
+                    key={pr.id}
+                    type="button"
+                    onClick={() => {
+                      setStartISO(iso);
+                      setEndISO(iso);
+                      setPeriodPrograma(pr);
+                      setOpen(false);
+                    }}
+                    className="rounded-md border px-2 py-1 text-xs font-semibold transition-transform hover:scale-[1.03]"
+                    style={{
+                      backgroundColor: hexToSoftBg(pr.cor, 0.18),
+                      borderColor: hexToSoftBg(pr.cor, 0.4),
+                      color: pr.cor,
+                    }}
+                    title={pr.nome}
+                  >
+                    {pr.sigla || pr.nome}
+                  </button>
+                ))}
+                {programas.length === 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    Nenhum programa cadastrado.
+                  </span>
+                )}
+              </div>
+            </div>
+            <div>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Situação especial
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {SITUACOES_ESPECIAIS.map((s) => (
+                  <button
+                    key={s.key}
+                    type="button"
+                    onClick={() => {
+                      onPick(null, s.key);
+                      setOpen(false);
+                    }}
+                    className="rounded-md border px-2 py-1 text-xs font-semibold transition-transform hover:scale-[1.03]"
+                    style={{
+                      backgroundColor: hexToSoftBg(s.cor, 0.16),
+                      borderColor: hexToSoftBg(s.cor, 0.4),
+                      color: s.cor,
+                    }}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {cell && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-destructive"
+                onClick={() => {
+                  onClear();
+                  setOpen(false);
+                }}
+              >
+                <X className="h-3.5 w-3.5" /> Limpar célula
+              </Button>
+            )}
+          </div>
+        </PopoverContent>
+      </Popover>
+
+      <Dialog
+        open={!!periodPrograma}
+        onOpenChange={(o) => !o && setPeriodPrograma(null)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Período de alocação</DialogTitle>
+            <DialogDescription>
+              Defina o intervalo em que a pessoa ficará no programa{" "}
+              <span className="font-semibold">{periodPrograma?.nome}</span>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Início
+              </label>
+              <Input
+                type="date"
+                value={startISO}
+                onChange={(e) => setStartISO(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Fim
+              </label>
+              <Input
+                type="date"
+                value={endISO}
+                min={startISO}
+                onChange={(e) => setEndISO(e.target.value)}
+              />
             </div>
           </div>
-          <div>
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Situação especial
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {SITUACOES_ESPECIAIS.map((s) => (
-                <button
-                  key={s.key}
-                  type="button"
-                  onClick={() => {
-                    onPick(null, s.key);
-                    setOpen(false);
-                  }}
-                  className="rounded-md border px-2 py-1 text-xs font-semibold transition-transform hover:scale-[1.03]"
-                  style={{
-                    backgroundColor: hexToSoftBg(s.cor, 0.16),
-                    borderColor: hexToSoftBg(s.cor, 0.4),
-                    color: s.cor,
-                  }}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          {cell && (
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setPeriodPrograma(null)}>
+              Cancelar
+            </Button>
             <Button
-              variant="ghost"
-              size="sm"
-              className="w-full text-destructive"
               onClick={() => {
-                onClear();
-                setOpen(false);
+                if (!periodPrograma) return;
+                const s = startISO;
+                const e = endISO < startISO ? startISO : endISO;
+                onPickRange(periodPrograma.id, "Trabalhando", s, e);
+                setPeriodPrograma(null);
               }}
             >
-              <X className="h-3.5 w-3.5" /> Limpar célula
+              Confirmar
             </Button>
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -757,7 +885,7 @@ function CoberturaRow({
           <div className="min-w-0">
             <div className="truncate text-xs font-semibold">{programa.nome}</div>
             <div className="text-[10px] text-muted-foreground">
-              Necessidade {totals.need} · Alocados {totals.alloc} ·{" "}
+              Alocados {totals.alloc} · Necessidade {totals.need} ·{" "}
               <span
                 className={cn(
                   "font-semibold",
