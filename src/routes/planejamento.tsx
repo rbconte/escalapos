@@ -558,12 +558,22 @@ function PlanejamentoPage() {
                             style={{ width: colWidth, minWidth: colWidth, height: 44 }}
                           >
                             <CellPicker
+                              iso={iso}
                               cell={cell}
                               programas={programas}
                               onPick={(programaId, status) =>
                                 setCell.mutate({
                                   pessoaId: p.id,
                                   data: iso,
+                                  programaId,
+                                  status,
+                                })
+                              }
+                              onPickRange={(programaId, status, startISO, endISO) =>
+                                setRange.mutate({
+                                  pessoaId: p.id,
+                                  startISO,
+                                  endISO,
                                   programaId,
                                   status,
                                 })
