@@ -16,6 +16,7 @@ import { Route as PessoasRouteImport } from './routes/pessoas'
 import { Route as IlhasRouteImport } from './routes/ilhas'
 import { Route as GestaoRouteImport } from './routes/gestao'
 import { Route as FuncoesRouteImport } from './routes/funcoes'
+import { Route as FeriasRouteImport } from './routes/ferias'
 import { Route as ConteudosRouteImport } from './routes/conteudos'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GestaoIndexRouteImport } from './routes/gestao.index'
@@ -59,6 +60,11 @@ const FuncoesRoute = FuncoesRouteImport.update({
   path: '/funcoes',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FeriasRoute = FeriasRouteImport.update({
+  id: '/ferias',
+  path: '/ferias',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ConteudosRoute = ConteudosRouteImport.update({
   id: '/conteudos',
   path: '/conteudos',
@@ -98,6 +104,7 @@ const GestaoConteudosRoute = GestaoConteudosRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/conteudos': typeof ConteudosRoute
+  '/ferias': typeof FeriasRoute
   '/funcoes': typeof FuncoesRoute
   '/gestao': typeof GestaoRouteWithChildren
   '/ilhas': typeof IlhasRoute
@@ -114,6 +121,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/conteudos': typeof ConteudosRoute
+  '/ferias': typeof FeriasRoute
   '/funcoes': typeof FuncoesRoute
   '/ilhas': typeof IlhasRoute
   '/pessoas': typeof PessoasRoute
@@ -130,6 +138,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/conteudos': typeof ConteudosRoute
+  '/ferias': typeof FeriasRoute
   '/funcoes': typeof FuncoesRoute
   '/gestao': typeof GestaoRouteWithChildren
   '/ilhas': typeof IlhasRoute
@@ -148,6 +157,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/conteudos'
+    | '/ferias'
     | '/funcoes'
     | '/gestao'
     | '/ilhas'
@@ -164,6 +174,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/conteudos'
+    | '/ferias'
     | '/funcoes'
     | '/ilhas'
     | '/pessoas'
@@ -179,6 +190,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/conteudos'
+    | '/ferias'
     | '/funcoes'
     | '/gestao'
     | '/ilhas'
@@ -196,6 +208,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ConteudosRoute: typeof ConteudosRoute
+  FeriasRoute: typeof FeriasRoute
   FuncoesRoute: typeof FuncoesRoute
   GestaoRoute: typeof GestaoRouteWithChildren
   IlhasRoute: typeof IlhasRoute
@@ -254,6 +267,13 @@ declare module '@tanstack/react-router' {
       path: '/funcoes'
       fullPath: '/funcoes'
       preLoaderRoute: typeof FuncoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ferias': {
+      id: '/ferias'
+      path: '/ferias'
+      fullPath: '/ferias'
+      preLoaderRoute: typeof FeriasRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/conteudos': {
@@ -330,6 +350,7 @@ const GestaoRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ConteudosRoute: ConteudosRoute,
+  FeriasRoute: FeriasRoute,
   FuncoesRoute: FuncoesRoute,
   GestaoRoute: GestaoRouteWithChildren,
   IlhasRoute: IlhasRoute,
