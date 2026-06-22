@@ -80,30 +80,45 @@ export type Database = {
           created_at: string
           data_fim: string
           data_inicio: string
+          dias_abono: number
+          dias_gozo: number | null
           id: string
           observacao: string | null
+          periodo_aquisitivo_fim: string | null
+          periodo_aquisitivo_inicio: string | null
           pessoa_id: string
           status: string
+          tipo_programacao: string
           updated_at: string
         }
         Insert: {
           created_at?: string
           data_fim: string
           data_inicio: string
+          dias_abono?: number
+          dias_gozo?: number | null
           id?: string
           observacao?: string | null
+          periodo_aquisitivo_fim?: string | null
+          periodo_aquisitivo_inicio?: string | null
           pessoa_id: string
           status?: string
+          tipo_programacao?: string
           updated_at?: string
         }
         Update: {
           created_at?: string
           data_fim?: string
           data_inicio?: string
+          dias_abono?: number
+          dias_gozo?: number | null
           id?: string
           observacao?: string | null
+          periodo_aquisitivo_fim?: string | null
+          periodo_aquisitivo_inicio?: string | null
           pessoa_id?: string
           status?: string
+          tipo_programacao?: string
           updated_at?: string
         }
         Relationships: [
@@ -242,30 +257,57 @@ export type Database = {
       }
       pessoas: {
         Row: {
+          contato_emergencia: string | null
           created_at: string
+          data_contratacao: string | null
+          email_corporativo: string | null
+          email_pessoal: string | null
+          endereco: string | null
           funcao_id: string | null
           id: string
+          jornada_padrao: string | null
+          matricula: string | null
           nome: string
           ordem: number
+          position: string | null
           status: string
+          telefone: string | null
           tipo_conteudo_id: string | null
         }
         Insert: {
+          contato_emergencia?: string | null
           created_at?: string
+          data_contratacao?: string | null
+          email_corporativo?: string | null
+          email_pessoal?: string | null
+          endereco?: string | null
           funcao_id?: string | null
           id?: string
+          jornada_padrao?: string | null
+          matricula?: string | null
           nome: string
           ordem?: number
+          position?: string | null
           status?: string
+          telefone?: string | null
           tipo_conteudo_id?: string | null
         }
         Update: {
+          contato_emergencia?: string | null
           created_at?: string
+          data_contratacao?: string | null
+          email_corporativo?: string | null
+          email_pessoal?: string | null
+          endereco?: string | null
           funcao_id?: string | null
           id?: string
+          jornada_padrao?: string | null
+          matricula?: string | null
           nome?: string
           ordem?: number
+          position?: string | null
           status?: string
+          telefone?: string | null
           tipo_conteudo_id?: string | null
         }
         Relationships: [

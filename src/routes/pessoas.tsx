@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -17,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -36,7 +38,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { funcoesQuery, pessoasQuery } from "@/lib/queries";
-import { STATUS_PESSOA, type PessoaComFuncao } from "@/lib/domain";
+import { JORNADAS, STATUS_PESSOA, type PessoaComFuncao } from "@/lib/domain";
 
 export const Route = createFileRoute("/pessoas")({
   head: () => ({
@@ -53,36 +55,87 @@ export const Route = createFileRoute("/pessoas")({
 });
 
 const NONE = "__none__";
+const ANY = "__any__";
+
+type FormState = {
+  nome: string;
+  matricula: string;
+  funcaoId: string;
+  position: string;
+  data_contratacao: string;
+  telefone: string;
+  email_corporativo: string;
+  email_pessoal: string;
+  contato_emergencia: string;
+  endereco: string;
+  jornada_padrao: string;
+  status: string;
+};
+
+const EMPTY_FORM: FormState = {
+  nome: "",
+  matricula: "",
+  funcaoId: NONE,
+  position: "",
+  data_contratacao: "",
+  telefone: "",
+  email_corporativo: "",
+  email_pessoal: "",
+  contato_emergencia: "",
+  endereco: "",
+  jornada_padrao: "8h",
+  status: "Ativo",
+};
 
 function PessoasPage() {
   const { data: pessoas } = useSuspenseQuery(pessoasQuery());
   const { data: funcoes } = useSuspenseQuery(funcoesQuery());
   const qc = useQueryClient();
+
   const [search, setSearch] = useState("");
+  const [filtroFuncao, setFiltroFuncao] = useState<string>(ANY);
+  const [filtroStatus, setFiltroStatus] = useState<string>(ANY);
+  const [filtroContratDe, setFiltroContratDe] = useState("");
+  const [filtroContratAte, setFiltroContratAte] = useState("");
+
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<PessoaComFuncao | null>(null);
-  const [nome, setNome] = useState("");
-  const [funcaoId, setFuncaoId] = useState<string>(NONE);
-  const [status, setStatus] = useState<string>("Ativo");
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [toDelete, setToDelete] = useState<PessoaComFuncao | null>(null);
 
-  const filtered = useMemo(
-    () =>
-      pessoas.filter(
-        (p) =>
-          p.nome.toLowerCase().includes(search.toLowerCase()) ||
-          (p.funcao?.nome ?? "").toLowerCase().includes(search.toLowerCase()),
-      ),
-    [pessoas, search],
-  );
+  const filtered = useMemo(() => {
+    const s = search.toLowerCase();
+    return pessoas.filter((p) => {
+      const matchSearch =
+        !s ||
+        p.nome.toLowerCase().includes(s) ||
+        (p.matricula ?? "").toLowerCase().includes(s) ||
+        (p.position ?? "").toLowerCase().includes(s) ||
+        (p.funcao?.nome ?? "").toLowerCase().includes(s);
+      const matchFuncao = filtroFuncao === ANY || p.funcao_id === filtroFuncao;
+      const matchStatus = filtroStatus === ANY || p.status === filtroStatus;
+      const matchDe = !filtroContratDe || (p.data_contratacao ?? "") >= filtroContratDe;
+      const matchAte = !filtroContratAte || (p.data_contratacao ?? "9999") <= filtroContratAte;
+      return matchSearch && matchFuncao && matchStatus && matchDe && matchAte;
+    });
+  }, [pessoas, search, filtroFuncao, filtroStatus, filtroContratDe, filtroContratAte]);
 
   const save = useMutation({
     mutationFn: async () => {
-      if (!nome.trim()) throw new Error("Informe o nome do colaborador.");
+      if (!form.nome.trim()) throw new Error("Informe o nome do colaborador.");
       const payload = {
-        nome: nome.trim(),
-        funcao_id: funcaoId === NONE ? null : funcaoId,
-        status,
+        nome: form.nome.trim(),
+        matricula: form.matricula.trim() || null,
+        funcao_id: form.funcaoId === NONE ? null : form.funcaoId,
+        position: form.position.trim() || null,
+        data_contratacao: form.data_contratacao || null,
+        telefone: form.telefone.trim() || null,
+        email_corporativo: form.email_corporativo.trim() || null,
+        email_pessoal: form.email_pessoal.trim() || null,
+        contato_emergencia: form.contato_emergencia.trim() || null,
+        endereco: form.endereco.trim() || null,
+        jornada_padrao: form.jornada_padrao || null,
+        status: form.status,
       };
       if (editing) {
         const { error } = await supabase.from("pessoas").update(payload).eq("id", editing.id);
@@ -116,23 +169,35 @@ function PessoasPage() {
 
   function openNew() {
     setEditing(null);
-    setNome("");
-    setFuncaoId(NONE);
-    setStatus("Ativo");
+    setForm(EMPTY_FORM);
     setOpen(true);
   }
   function openEdit(p: PessoaComFuncao) {
     setEditing(p);
-    setNome(p.nome);
-    setFuncaoId(p.funcao_id ?? NONE);
-    setStatus(p.status);
+    setForm({
+      nome: p.nome,
+      matricula: p.matricula ?? "",
+      funcaoId: p.funcao_id ?? NONE,
+      position: p.position ?? "",
+      data_contratacao: p.data_contratacao ?? "",
+      telefone: p.telefone ?? "",
+      email_corporativo: p.email_corporativo ?? "",
+      email_pessoal: p.email_pessoal ?? "",
+      contato_emergencia: p.contato_emergencia ?? "",
+      endereco: p.endereco ?? "",
+      jornada_padrao: p.jornada_padrao ?? "8h",
+      status: p.status,
+    });
     setOpen(true);
   }
+
+  const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
+    setForm((f) => ({ ...f, [k]: v }));
 
   return (
     <PageShell
       title="Pessoas"
-      description="Colaboradores disponíveis para alocação na escala."
+      description="Cadastro de colaboradores: dados pessoais, operacionais e status."
       icon={<Users className="h-5 w-5" />}
       actions={
         <Button onClick={openNew}>
@@ -140,20 +205,52 @@ function PessoasPage() {
         </Button>
       }
     >
-      <div className="mx-auto max-w-4xl space-y-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <div className="mx-auto max-w-5xl space-y-4">
+        <div className="grid gap-3 rounded-xl border bg-card p-3 shadow-soft md:grid-cols-[1.5fr_1fr_1fr_1fr_1fr]">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Nome, matrícula, cargo ou função..."
+              className="pl-9"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <Select value={filtroFuncao} onValueChange={setFiltroFuncao}>
+            <SelectTrigger><SelectValue placeholder="Função" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY}>Todas as funções</SelectItem>
+              {funcoes.map((f) => (
+                <SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filtroStatus} onValueChange={setFiltroStatus}>
+            <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY}>Todos os status</SelectItem>
+              {STATUS_PESSOA.map((s) => (
+                <SelectItem key={s} value={s}>{s}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Input
-            placeholder="Pesquisar por nome ou função..."
-            className="pl-9"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            type="date"
+            value={filtroContratDe}
+            onChange={(e) => setFiltroContratDe(e.target.value)}
+            aria-label="Contratado de"
+          />
+          <Input
+            type="date"
+            value={filtroContratAte}
+            onChange={(e) => setFiltroContratAte(e.target.value)}
+            aria-label="Contratado até"
           />
         </div>
 
         <div className="overflow-hidden rounded-xl border bg-card shadow-soft">
           {filtered.length === 0 ? (
-            <EmptyRow text="Nenhum colaborador cadastrado." />
+            <EmptyRow text="Nenhum colaborador encontrado." />
           ) : (
             filtered.map((p, i) => (
               <div
@@ -166,8 +263,13 @@ function PessoasPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{p.nome}</p>
                   <p className="truncate text-sm text-muted-foreground">
-                    {p.funcao?.nome ?? "Sem função"}
+                    {[p.matricula, p.position ?? p.funcao?.nome ?? "Sem função"]
+                      .filter(Boolean)
+                      .join(" • ")}
                   </p>
+                </div>
+                <div className="hidden text-xs text-muted-foreground sm:block">
+                  {p.jornada_padrao ?? "—"}
                 </div>
                 <Badge
                   variant={p.status === "Ativo" ? "default" : "secondary"}
@@ -195,60 +297,102 @@ function PessoasPage() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editing ? "Editar colaborador" : "Novo colaborador"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="nome">Nome</Label>
-              <Input
-                id="nome"
-                value={nome}
-                autoFocus
-                placeholder="Ex.: Maria Souza"
-                onChange={(e) => setNome(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Função</Label>
-              <Select value={funcaoId} onValueChange={setFuncaoId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a função" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>Sem função</SelectItem>
-                  {funcoes.map((f) => (
-                    <SelectItem key={f.id} value={f.id}>
-                      {f.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_PESSOA.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          <Tabs defaultValue="pessoais" className="pt-2">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="pessoais">Dados Pessoais</TabsTrigger>
+              <TabsTrigger value="operacionais">Dados Operacionais</TabsTrigger>
+            </TabsList>
+            <TabsContent value="pessoais" className="space-y-3 pt-3">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Nome completo</Label>
+                  <Input value={form.nome} onChange={(e) => set("nome", e.target.value)} autoFocus />
+                </div>
+                <div className="space-y-2">
+                  <Label>Matrícula</Label>
+                  <Input value={form.matricula} onChange={(e) => set("matricula", e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Data de contratação</Label>
+                  <Input type="date" value={form.data_contratacao}
+                    onChange={(e) => set("data_contratacao", e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Telefone</Label>
+                  <Input value={form.telefone} onChange={(e) => set("telefone", e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Contato de emergência</Label>
+                  <Input value={form.contato_emergencia}
+                    onChange={(e) => set("contato_emergencia", e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>E-mail corporativo</Label>
+                  <Input type="email" value={form.email_corporativo}
+                    onChange={(e) => set("email_corporativo", e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>E-mail pessoal</Label>
+                  <Input type="email" value={form.email_pessoal}
+                    onChange={(e) => set("email_pessoal", e.target.value)} />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Endereço</Label>
+                  <Textarea rows={2} value={form.endereco}
+                    onChange={(e) => set("endereco", e.target.value)} />
+                </div>
+              </div>
+            </TabsContent>
+            <TabsContent value="operacionais" className="space-y-3 pt-3">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Função</Label>
+                  <Select value={form.funcaoId} onValueChange={(v) => set("funcaoId", v)}>
+                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE}>Sem função</SelectItem>
+                      {funcoes.map((f) => (
+                        <SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Cargo (Position)</Label>
+                  <Input value={form.position} onChange={(e) => set("position", e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Jornada padrão</Label>
+                  <Select value={form.jornada_padrao} onValueChange={(v) => set("jornada_padrao", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {JORNADAS.map((j) => (
+                        <SelectItem key={j} value={j}>{j}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select value={form.status} onValueChange={(v) => set("status", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {STATUS_PESSOA.map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={() => save.mutate()} disabled={save.isPending}>
-              Salvar
-            </Button>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+            <Button onClick={() => save.mutate()} disabled={save.isPending}>Salvar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -46,7 +46,32 @@ export const SITUACOES_ESPECIAIS = [
 ] as const;
 
 
-export const STATUS_PESSOA = ["Ativo", "Inativo", "Férias"] as const;
+export const STATUS_PESSOA = [
+  "Ativo",
+  "Férias",
+  "Licença",
+  "Afastado",
+  "Desligado",
+  "Inativo",
+] as const;
+
+export const JORNADAS = ["6h", "8h", "9h"] as const;
+export type Jornada = (typeof JORNADAS)[number];
+
+export const TIPO_PROGRAMACAO_FERIAS = [
+  "Integrais",
+  "Ferias+Abono",
+  "Fracionadas",
+  "Fracionadas+Abono",
+] as const;
+export type TipoProgramacaoFerias = (typeof TIPO_PROGRAMACAO_FERIAS)[number];
+
+export const TIPO_PROGRAMACAO_LABEL: Record<TipoProgramacaoFerias, string> = {
+  Integrais: "Férias Integrais (30 dias)",
+  "Ferias+Abono": "Férias + Abono (20 + 10)",
+  Fracionadas: "Férias Fracionadas",
+  "Fracionadas+Abono": "Férias Fracionadas + Abono",
+};
 
 export const PROGRAMA_CORES = [
   "#2563eb",

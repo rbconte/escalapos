@@ -140,6 +140,19 @@ export const feriasQuery = (from?: string, to?: string) =>
     },
   });
 
+export const todasFeriasQuery = () =>
+  queryOptions({
+    queryKey: ["ferias", "all"],
+    queryFn: async (): Promise<Ferias[]> => {
+      const { data, error } = await supabase
+        .from("ferias")
+        .select("*")
+        .order("data_inicio", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
 export const licencasQuery = (from?: string, to?: string) =>
   queryOptions({
     queryKey: ["licencas", from ?? "all", to ?? "all"],
