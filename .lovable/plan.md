@@ -1,81 +1,106 @@
-## Planejamento Macro — Plano de Implementação
+# Evolução: Gestão de Pessoas + Plano de Férias
 
-Novo módulo gerencial sincronizado com a Escala Operacional, compartilhando a mesma tabela `escalas` (sem duplicação de dados).
+## Escopo
+Expandir cadastro de pessoas, criar módulo de Plano de Férias como fonte única, com sincronização automática com Escala Operacional e Planejamento Macro, incluindo abono pecuniário, alertas e dashboard.
 
-### 1. Banco de dados (migração)
+## 1. Banco de dados (migrations)
 
-**Nova tabela `programa_necessidades`** — quantidade necessária por programa e dia da semana:
-- `programa_id` (FK), `dia_semana` (0=Dom … 6=Sáb), `quantidade` (int)
-- Unique(programa_id, dia_semana)
-- RLS público (mesmo padrão das outras tabelas)
+**Tabela `pessoas` — novos campos:**
+- `matricula` (text, único)
+- `position` (text) — cargo
+- `data_contratacao` (date)
+- `telefone`, `email_corporativo`, `email_pessoal` (text)
+- `contato_emergencia` (text)
+- `endereco` (text)
+- `jornada_padrao` (text: '6h' | '8h' | '9h')
+- Ampliar `status`: `Ativo | Férias | Licença | Afastado | Desligado`
 
-**Status especiais** já existem em `escalas.status` (Folga, Férias, Licença, etc.). Vamos ampliar/normalizar a lista para incluir: Trabalhando, Folga, Férias, Licença, Treinamento, Banco de Horas, Afastamento, Outros. Cada situação tem cor própria (definida em `lib/domain.ts`, não no banco — mantém simplicidade).
+**Tabela `ferias` — evoluir (hoje só tem início/fim/status/observação):**
+- `dias_gozo` (int)
+- `dias_abono` (int, default 0)
+- `tipo_programacao` (text: 'Integrais' | 'Ferias+Abono' | 'Fracionadas' | 'Fracionadas+Abono')
+- `periodo_aquisitivo_inicio` (date) — base para cálculo
+- `periodo_aquisitivo_fim` (date)
+- Manter `data_inicio`, `data_fim`, `status`
 
-### 2. Modelo de dados / sincronização
+**Função de cálculo (SQL):**
+- `calcular_saldo_ferias(pessoa_id)` retorna períodos aquisitivos com dias de direito, programados, gozados, abonados e saldo, usando `data_contratacao`.
 
-Sem cadastro paralelo. O Planejamento Macro **lê e escreve diretamente em `escalas`**:
+## 2. Domínio & queries (`src/lib/`)
+- Atualizar tipos `Pessoa` e `Ferias` em `domain.ts`.
+- Em `queries.ts`: novos hooks `usePessoaCompleta`, `useSaldoFerias(pessoaId)`, `useFeriasProgramadas`, `useAlertasFerias`, mutations `createFerias`, `updateFerias`, `deleteFerias`.
+- Helpers: `calcularPeriodoAquisitivo(dataContratacao, hoje)`, `calcularSaldo(direito, programados, gozados, abonados)`, `validarAbono(gozo, abono, saldo)`.
 
-- Célula com **Produto (programa)** → cria/atualiza `escalas` com `pessoa_id`, `data`, `programa_id`, demais campos (`hora_inicio`, `hora_fim`, `ilha_id`, `modalidade`, `observacao`) ficam em branco.
-- Célula com **Situação Especial** → cria `escalas` com `status` correspondente e `programa_id = NULL`.
-- Apagar célula → remove a linha de `escalas`.
+## 3. Cadastro de Pessoas (`src/routes/pessoas.tsx`)
+- Form expandido com abas: **Dados Pessoais**, **Dados Operacionais**.
+- Filtros: nome, matrícula, função, cargo, status, data de contratação (range).
+- Tabela com novas colunas principais (matrícula, função, cargo, jornada, status).
 
-A Escala Operacional já lê de `escalas`, então a sincronização é automática via React Query (invalidação compartilhada de `["escalas"]`).
+## 4. Módulo Plano de Férias (novo)
 
-### 3. Evolução do cadastro de Programas (`/programas`)
+**Sidebar:** novo item "Plano de Férias" → `/ferias`.
 
-Adicionar seção **"Necessidade Operacional"** no modal de criar/editar programa:
-- 7 inputs numéricos (Seg→Dom), com defaults 0
-- Salvo em `programa_necessidades` no mesmo submit
-- Carregado ao editar
+**Rotas:**
+- `/ferias` — dashboard + lista (tabs)
+- `/ferias/calendario` — mapa anual
 
-### 4. Nova rota `/planejamento`
+### 4.1 Dashboard (`/ferias`)
+Cards:
+- Em férias hoje
+- Programadas nos próximos 30 dias
+- Vencendo em 60 dias
+- Vencendo em 30 dias
+- Vencidas
+- Dias abonados no período (ano atual)
+- Saldo total da equipe
 
-Arquivo `src/routes/planejamento.tsx` + item no `app-sidebar.tsx` (grupo Operacional, abaixo de "Escala Operacional", ícone `CalendarCheck`).
+### 4.2 Lista por colaborador
+Tabela: nome, função, contratação, período aquisitivo, direito, programados, gozados, abonados, saldo, status, alertas (badges).
+Ação "Programar férias" → dialog.
 
-**Estrutura visual** (reutiliza padrão de grid da Escala):
-- Linhas: colaboradores agrupados por Conteúdo → Programa (mesma lógica de `grupos` em `index.tsx`)
-- Colunas: dias (Diário/Semanal/Mensal — mesmo toolbar)
-- Cada célula mostra **apenas** sigla do programa OU nome da situação especial, com cor de fundo. Sem horário/ilha/modalidade.
-- Click em célula vazia → popover com seletor (Programas + Situações)
-- Click em célula preenchida → opções "Trocar / Limpar"
+### 4.3 Dialog de programação
+- Seleção do tipo de programação.
+- Opção 1: data início + data fim.
+- Opção 2: data início + qtd de dias (calcula fim).
+- Campos: dias de gozo, dias de abono (até 10/período).
+- Validação: gozo + abono ≤ saldo (mensagem exata do PRD).
+- Validação operacional: se houver `escalas` ou `programa_necessidades`/alocações no período → confirma "Deseja continuar?" (não bloqueia).
 
-**Linha de cobertura** abaixo de cada grupo de Programa:
-- "Necessidade: N | Alocados: X" por dia
-- Por dia da coluna: badge com contagem. Cores:
-  - Alocados < Necessidade → `bg-destructive text-destructive-foreground`
-  - Alocados > Necessidade → `bg-success text-success-foreground` (token novo, ou usar verde)
-  - Igual → cor padrão (muted)
+### 4.4 Calendário anual (`/ferias/calendario`)
+Grade meses × pessoas, blocos coloridos por período. Identifica concentração.
 
-**Resumo por Produto** (rodapé do grupo): Necessidade total no período, Alocados total, Diferença.
+## 5. Sincronização global
+- **Fonte única:** tabela `ferias`.
+- `Escala Operacional` e `Planejamento Macro` consultam `ferias` para marcar dias gozados (não os abonados) como indisponíveis.
+- Dias gozados:
+  - Pessoa não aparece como disponível na Escala.
+  - Cobertura por produto recalcula déficit (necessidade − disponíveis).
+  - Planejamento Macro mostra ausência no período.
+- Dias abonados: não impactam escala/cobertura.
+- Trigger ou função: ao inserir/alterar férias, invalidar caches de queries relacionadas no client (via `queryClient.invalidateQueries`).
 
-**Filtros** (toolbar): Conteúdo, Produto, Colaborador, Período (mesmo seletor da Escala).
+## 6. Alertas
+Função utilitária `getAlertasFerias(pessoa)`:
+- 60 dias para vencer + sem programação → warning
+- 30 dias para vencer + sem programação → crítico
+- Vencidas → prioritário
+Exibir em badges no cadastro, lista de férias e dashboard.
 
-**Legenda** (rodapé/sidebar): swatches por Conteúdo + situações especiais.
+## 7. Indicadores de cobertura
+- Atualizar `metricas.ts` / Gestão > Operação para considerar férias gozadas no cálculo de disponíveis.
+- Exibir "Déficit operacional" quando disponíveis < necessidade.
 
-### 5. Componentes novos
+## Ordem de execução
+1. Migration (pessoas + ferias + função de cálculo).
+2. Tipos e queries.
+3. Cadastro de pessoas expandido.
+4. Módulo Plano de Férias (dashboard + lista + dialog).
+5. Calendário anual.
+6. Integração com Escala e Planejamento Macro (cobertura/déficit).
+7. Alertas globais.
 
-- `src/routes/planejamento.tsx` — página principal
-- `src/components/planejamento/cell-picker.tsx` — popover seletor programa/situação
-- `src/components/planejamento/cobertura-row.tsx` — linha de necessidade vs alocado
-- `src/components/planejamento/legenda.tsx`
-
-### 6. lib/queries.ts
-
-Nova query `programaNecessidadesQuery()` que retorna `Map<programaId, { [dia_semana]: quantidade }>`.
-
-### 7. lib/domain.ts
-
-Constante `SITUACOES_ESPECIAIS` com `{ key, label, cor }` para Folga, Férias, Licença, Treinamento, Banco de Horas, Afastamento, Outros.
-
-### Fora de escopo (não incluído)
-- Drag & drop entre células (a Escala já tem; Macro mantém só click)
-- Edição em massa
-- Histórico/auditoria
-- Cobertura cruzando férias/licenças (cálculo conta apenas alocações em programa)
-
-### Ordem de execução
-1. Migração `programa_necessidades`
-2. `lib/domain.ts` + `lib/queries.ts`
-3. Cadastro de Programas (necessidade)
-4. Rota `/planejamento` + componentes
-5. Item de menu
+## Fora do escopo
+- Notificações por e-mail.
+- Workflow de aprovação de férias.
+- Histórico/auditoria de alterações.
+- Exportação específica do Plano de Férias (pode reaproveitar export existente em fase futura).
