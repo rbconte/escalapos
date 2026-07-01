@@ -424,7 +424,89 @@ function PessoasPage() {
                 </div>
               </div>
             </TabsContent>
-          </Tabs>
+            <TabsContent value="ferias" className="space-y-3 pt-3">
+              <p className="text-sm text-muted-foreground">
+                Configuração inicial de férias para colaboradores existentes. Registros anteriores
+                à data de início do controle serão ignorados.
+              </p>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Status inicial de férias</Label>
+                  <Select
+                    value={form.vacation_status}
+                    onValueChange={(v) => set("vacation_status", v)}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE_VAC}>Não configurado</SelectItem>
+                      <SelectItem value="em_dia">Em dia</SelectItem>
+                      <SelectItem value="pendente">Saldo pendente</SelectItem>
+                      <SelectItem value="vencida">Férias vencidas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {form.vacation_status === "em_dia" && (
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Data de início do controle de férias *</Label>
+                    <Input
+                      type="date"
+                      value={form.vacation_control_start}
+                      onChange={(e) => set("vacation_control_start", e.target.value)}
+                    />
+                  </div>
+                )}
+                {form.vacation_status === "pendente" && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Dias pendentes *</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={form.pending_vacation_days}
+                        onChange={(e) => set("pending_vacation_days", e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Data de início do controle</Label>
+                      <Input
+                        type="date"
+                        value={form.vacation_control_start}
+                        onChange={(e) => set("vacation_control_start", e.target.value)}
+                      />
+                    </div>
+                  </>
+                )}
+                {form.vacation_status === "vencida" && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Dias vencidos *</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={form.overdue_vacation_days}
+                        onChange={(e) => set("overdue_vacation_days", e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Data de início do controle</Label>
+                      <Input
+                        type="date"
+                        value={form.vacation_control_start}
+                        onChange={(e) => set("vacation_control_start", e.target.value)}
+                      />
+                    </div>
+                  </>
+                )}
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Observações</Label>
+                  <Textarea
+                    rows={2}
+                    value={form.vacation_setup_notes}
+                    onChange={(e) => set("vacation_setup_notes", e.target.value)}
+                  />
+                </div>
+              </div>
+            </TabsContent>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button onClick={() => save.mutate()} disabled={save.isPending}>Salvar</Button>
