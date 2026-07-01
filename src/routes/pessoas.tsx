@@ -305,6 +305,24 @@ function PessoasPage() {
                 <div className="hidden text-xs text-muted-foreground sm:block">
                   {p.jornada_padrao ?? "—"}
                 </div>
+                {(() => {
+                  const vStatus = (p as unknown as { vacation_status?: string }).vacation_status;
+                  const needsSetup = p.data_contratacao && !vStatus;
+                  if (needsSetup) {
+                    return (
+                      <Badge className="bg-warning/15 text-warning hover:bg-warning/15">
+                        🟠 Configurar férias
+                      </Badge>
+                    );
+                  }
+                  if (vStatus === "em_dia")
+                    return <Badge className="bg-success/15 text-success hover:bg-success/15">🟢 Em dia</Badge>;
+                  if (vStatus === "pendente")
+                    return <Badge className="bg-warning/15 text-warning hover:bg-warning/15">🟡 Pendente</Badge>;
+                  if (vStatus === "vencida")
+                    return <Badge className="bg-destructive/15 text-destructive hover:bg-destructive/15">🚨 Vencida</Badge>;
+                  return null;
+                })()}
                 <Badge
                   variant={p.status === "Ativo" ? "default" : "secondary"}
                   className={p.status === "Ativo" ? "bg-success/15 text-success hover:bg-success/15" : ""}
