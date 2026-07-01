@@ -324,7 +324,18 @@ function ProgramarFeriasDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const saldo = calcularSaldo(pessoa.data_contratacao, ferias, hoje);
+  const pAny = pessoa as unknown as {
+    vacation_status?: string | null;
+    vacation_control_start?: string | null;
+    pending_vacation_days?: number | null;
+    overdue_vacation_days?: number | null;
+  };
+  const saldo = calcularSaldo(pessoa.data_contratacao, ferias, hoje, {
+    vacation_status: pAny.vacation_status ?? null,
+    vacation_control_start: pAny.vacation_control_start ?? null,
+    pending_vacation_days: pAny.pending_vacation_days ?? 0,
+    overdue_vacation_days: pAny.overdue_vacation_days ?? 0,
+  });
   const abonadosNoPeriodo = saldo.abonados;
 
   const [modo, setModo] = useState<"intervalo" | "quantidade">("intervalo");
