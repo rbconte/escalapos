@@ -67,14 +67,35 @@ function FeriasPage() {
     [pessoas],
   );
 
+  const setupOf = (p: PessoaComFuncao) => {
+    const a = p as unknown as {
+      vacation_status?: string | null;
+      vacation_control_start?: string | null;
+      pending_vacation_days?: number | null;
+      overdue_vacation_days?: number | null;
+    };
+    return {
+      vacation_status: a.vacation_status ?? null,
+      vacation_control_start: a.vacation_control_start ?? null,
+      pending_vacation_days: a.pending_vacation_days ?? 0,
+      overdue_vacation_days: a.overdue_vacation_days ?? 0,
+    };
+  };
+
   const saldosPorPessoa = useMemo(() => {
     const m = new Map<string, SaldoFerias>();
     for (const p of ativos) {
       const fp = ferias.filter((f) => f.pessoa_id === p.id);
-      m.set(p.id, calcularSaldo(p.data_contratacao, fp, hoje));
+      m.set(p.id, calcularSaldo(p.data_contratacao, fp, hoje, setupOf(p)));
     }
     return m;
   }, [ativos, ferias, hoje]);
+
+  // Setup metrics
+  const setupPendente = ativos.filter((p) => p.data_contratacao && !setupOf(p).vacation_status).length;
+  const setupEmDia = ativos.filter((p) => setupOf(p).vacation_status === "em_dia").length;
+  const setupPending = ativos.filter((p) => setupOf(p).vacation_status === "pendente").length;
+  const setupVencida = ativos.filter((p) => setupOf(p).vacation_status === "vencida").length;
 
   // Dashboard metrics
   const emFeriasHoje = ferias.filter(
