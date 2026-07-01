@@ -336,9 +336,10 @@ function PessoasPage() {
             <DialogTitle>{editing ? "Editar colaborador" : "Novo colaborador"}</DialogTitle>
           </DialogHeader>
           <Tabs defaultValue="pessoais" className="pt-2">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="pessoais">Dados Pessoais</TabsTrigger>
               <TabsTrigger value="operacionais">Dados Operacionais</TabsTrigger>
+              <TabsTrigger value="ferias">Férias</TabsTrigger>
             </TabsList>
             <TabsContent value="pessoais" className="space-y-3 pt-3">
               <div className="grid gap-3 md:grid-cols-2">
