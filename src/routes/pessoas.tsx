@@ -135,6 +135,15 @@ function PessoasPage() {
   const save = useMutation({
     mutationFn: async () => {
       if (!form.nome.trim()) throw new Error("Informe o nome do colaborador.");
+      if (form.vacation_status === "em_dia" && !form.vacation_control_start) {
+        throw new Error("Informe a data inicial de controle de férias.");
+      }
+      if (form.vacation_status === "pendente" && !(parseInt(form.pending_vacation_days, 10) > 0)) {
+        throw new Error("Informe a quantidade de dias pendentes.");
+      }
+      if (form.vacation_status === "vencida" && !(parseInt(form.overdue_vacation_days, 10) > 0)) {
+        throw new Error("Informe a quantidade de dias vencidos.");
+      }
       const payload = {
         nome: form.nome.trim(),
         matricula: form.matricula.trim() || null,
@@ -148,7 +157,14 @@ function PessoasPage() {
         endereco: form.endereco.trim() || null,
         jornada_padrao: form.jornada_padrao || null,
         status: form.status,
-      };
+        vacation_status: form.vacation_status === NONE_VAC ? null : form.vacation_status,
+        vacation_control_start: form.vacation_control_start || null,
+        pending_vacation_days:
+          form.vacation_status === "pendente" ? parseInt(form.pending_vacation_days || "0", 10) : 0,
+        overdue_vacation_days:
+          form.vacation_status === "vencida" ? parseInt(form.overdue_vacation_days || "0", 10) : 0,
+        vacation_setup_notes: form.vacation_setup_notes.trim() || null,
+      } as never;
       if (editing) {
         const { error } = await supabase.from("pessoas").update(payload).eq("id", editing.id);
         if (error) throw error;
@@ -186,6 +202,7 @@ function PessoasPage() {
   }
   function openEdit(p: PessoaComFuncao) {
     setEditing(p);
+    const pAny = p as unknown as Record<string, unknown>;
     setForm({
       nome: p.nome,
       matricula: p.matricula ?? "",
@@ -199,6 +216,11 @@ function PessoasPage() {
       endereco: p.endereco ?? "",
       jornada_padrao: p.jornada_padrao ?? "8h",
       status: p.status,
+      vacation_status: (pAny.vacation_status as string) ?? NONE_VAC,
+      vacation_control_start: (pAny.vacation_control_start as string) ?? "",
+      pending_vacation_days: String((pAny.pending_vacation_days as number) ?? 0),
+      overdue_vacation_days: String((pAny.overdue_vacation_days as number) ?? 0),
+      vacation_setup_notes: (pAny.vacation_setup_notes as string) ?? "",
     });
     setOpen(true);
   }
