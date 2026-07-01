@@ -67,14 +67,35 @@ function FeriasPage() {
     [pessoas],
   );
 
+  const setupOf = (p: PessoaComFuncao) => {
+    const a = p as unknown as {
+      vacation_status?: string | null;
+      vacation_control_start?: string | null;
+      pending_vacation_days?: number | null;
+      overdue_vacation_days?: number | null;
+    };
+    return {
+      vacation_status: a.vacation_status ?? null,
+      vacation_control_start: a.vacation_control_start ?? null,
+      pending_vacation_days: a.pending_vacation_days ?? 0,
+      overdue_vacation_days: a.overdue_vacation_days ?? 0,
+    };
+  };
+
   const saldosPorPessoa = useMemo(() => {
     const m = new Map<string, SaldoFerias>();
     for (const p of ativos) {
       const fp = ferias.filter((f) => f.pessoa_id === p.id);
-      m.set(p.id, calcularSaldo(p.data_contratacao, fp, hoje));
+      m.set(p.id, calcularSaldo(p.data_contratacao, fp, hoje, setupOf(p)));
     }
     return m;
   }, [ativos, ferias, hoje]);
+
+  // Setup metrics
+  const setupPendente = ativos.filter((p) => p.data_contratacao && !setupOf(p).vacation_status).length;
+  const setupEmDia = ativos.filter((p) => setupOf(p).vacation_status === "em_dia").length;
+  const setupPending = ativos.filter((p) => setupOf(p).vacation_status === "pendente").length;
+  const setupVencida = ativos.filter((p) => setupOf(p).vacation_status === "vencida").length;
 
   // Dashboard metrics
   const emFeriasHoje = ferias.filter(
@@ -111,6 +132,22 @@ function FeriasPage() {
       description="Controle automático de períodos aquisitivos, abono pecuniário e cobertura operacional."
       icon={<CalendarHeart className="h-5 w-5" />}
     >
+      {setupPendente > 0 && (
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 p-3 text-sm">
+          <AlertTriangle className="mt-0.5 h-4 w-4 text-warning" />
+          <div className="flex-1">
+            <p className="font-medium">Configuração inicial de férias pendente</p>
+            <p className="text-muted-foreground">
+              {setupPendente} colaborador(es) sem status inicial de férias definido. Configure em
+              Pessoas › Férias para começar o controle automático.
+            </p>
+          </div>
+          <Button asChild size="sm" variant="outline">
+            <a href="/pessoas">Ir para Pessoas</a>
+          </Button>
+        </div>
+      )}
+
       <Tabs defaultValue="dashboard" className="space-y-4">
         <TabsList>
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
@@ -120,6 +157,10 @@ function FeriasPage() {
 
         <TabsContent value="dashboard" className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <KpiCard label="Configuração pendente" value={setupPendente} tone={setupPendente > 0 ? "warning" : undefined} />
+            <KpiCard label="Férias em dia" value={setupEmDia} />
+            <KpiCard label="Saldo pendente (setup)" value={setupPending} tone={setupPending > 0 ? "warning" : undefined} />
+            <KpiCard label="Vencidas (setup)" value={setupVencida} tone={setupVencida > 0 ? "danger" : undefined} />
             <KpiCard label="Em férias hoje" value={emFeriasHoje} />
             <KpiCard label="Próximos 30 dias" value={proximos30} />
             <KpiCard label="Vencendo em 60d" value={vencendo60} tone="warning" />
@@ -283,7 +324,18 @@ function ProgramarFeriasDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const saldo = calcularSaldo(pessoa.data_contratacao, ferias, hoje);
+  const pAny = pessoa as unknown as {
+    vacation_status?: string | null;
+    vacation_control_start?: string | null;
+    pending_vacation_days?: number | null;
+    overdue_vacation_days?: number | null;
+  };
+  const saldo = calcularSaldo(pessoa.data_contratacao, ferias, hoje, {
+    vacation_status: pAny.vacation_status ?? null,
+    vacation_control_start: pAny.vacation_control_start ?? null,
+    pending_vacation_days: pAny.pending_vacation_days ?? 0,
+    overdue_vacation_days: pAny.overdue_vacation_days ?? 0,
+  });
   const abonadosNoPeriodo = saldo.abonados;
 
   const [modo, setModo] = useState<"intervalo" | "quantidade">("intervalo");

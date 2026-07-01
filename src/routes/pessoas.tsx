@@ -70,7 +70,14 @@ type FormState = {
   endereco: string;
   jornada_padrao: string;
   status: string;
+  vacation_status: string;
+  vacation_control_start: string;
+  pending_vacation_days: string;
+  overdue_vacation_days: string;
+  vacation_setup_notes: string;
 };
+
+const NONE_VAC = "__none_vac__";
 
 const EMPTY_FORM: FormState = {
   nome: "",
@@ -85,6 +92,11 @@ const EMPTY_FORM: FormState = {
   endereco: "",
   jornada_padrao: "8h",
   status: "Ativo",
+  vacation_status: NONE_VAC,
+  vacation_control_start: "",
+  pending_vacation_days: "0",
+  overdue_vacation_days: "0",
+  vacation_setup_notes: "",
 };
 
 function PessoasPage() {
@@ -123,6 +135,15 @@ function PessoasPage() {
   const save = useMutation({
     mutationFn: async () => {
       if (!form.nome.trim()) throw new Error("Informe o nome do colaborador.");
+      if (form.vacation_status === "em_dia" && !form.vacation_control_start) {
+        throw new Error("Informe a data inicial de controle de férias.");
+      }
+      if (form.vacation_status === "pendente" && !(parseInt(form.pending_vacation_days, 10) > 0)) {
+        throw new Error("Informe a quantidade de dias pendentes.");
+      }
+      if (form.vacation_status === "vencida" && !(parseInt(form.overdue_vacation_days, 10) > 0)) {
+        throw new Error("Informe a quantidade de dias vencidos.");
+      }
       const payload = {
         nome: form.nome.trim(),
         matricula: form.matricula.trim() || null,
@@ -136,7 +157,14 @@ function PessoasPage() {
         endereco: form.endereco.trim() || null,
         jornada_padrao: form.jornada_padrao || null,
         status: form.status,
-      };
+        vacation_status: form.vacation_status === NONE_VAC ? null : form.vacation_status,
+        vacation_control_start: form.vacation_control_start || null,
+        pending_vacation_days:
+          form.vacation_status === "pendente" ? parseInt(form.pending_vacation_days || "0", 10) : 0,
+        overdue_vacation_days:
+          form.vacation_status === "vencida" ? parseInt(form.overdue_vacation_days || "0", 10) : 0,
+        vacation_setup_notes: form.vacation_setup_notes.trim() || null,
+      } as never;
       if (editing) {
         const { error } = await supabase.from("pessoas").update(payload).eq("id", editing.id);
         if (error) throw error;
@@ -174,6 +202,7 @@ function PessoasPage() {
   }
   function openEdit(p: PessoaComFuncao) {
     setEditing(p);
+    const pAny = p as unknown as Record<string, unknown>;
     setForm({
       nome: p.nome,
       matricula: p.matricula ?? "",
@@ -187,6 +216,11 @@ function PessoasPage() {
       endereco: p.endereco ?? "",
       jornada_padrao: p.jornada_padrao ?? "8h",
       status: p.status,
+      vacation_status: (pAny.vacation_status as string) ?? NONE_VAC,
+      vacation_control_start: (pAny.vacation_control_start as string) ?? "",
+      pending_vacation_days: String((pAny.pending_vacation_days as number) ?? 0),
+      overdue_vacation_days: String((pAny.overdue_vacation_days as number) ?? 0),
+      vacation_setup_notes: (pAny.vacation_setup_notes as string) ?? "",
     });
     setOpen(true);
   }
@@ -271,6 +305,24 @@ function PessoasPage() {
                 <div className="hidden text-xs text-muted-foreground sm:block">
                   {p.jornada_padrao ?? "—"}
                 </div>
+                {(() => {
+                  const vStatus = (p as unknown as { vacation_status?: string }).vacation_status;
+                  const needsSetup = p.data_contratacao && !vStatus;
+                  if (needsSetup) {
+                    return (
+                      <Badge className="bg-warning/15 text-warning hover:bg-warning/15">
+                        🟠 Configurar férias
+                      </Badge>
+                    );
+                  }
+                  if (vStatus === "em_dia")
+                    return <Badge className="bg-success/15 text-success hover:bg-success/15">🟢 Em dia</Badge>;
+                  if (vStatus === "pendente")
+                    return <Badge className="bg-warning/15 text-warning hover:bg-warning/15">🟡 Pendente</Badge>;
+                  if (vStatus === "vencida")
+                    return <Badge className="bg-destructive/15 text-destructive hover:bg-destructive/15">🚨 Vencida</Badge>;
+                  return null;
+                })()}
                 <Badge
                   variant={p.status === "Ativo" ? "default" : "secondary"}
                   className={p.status === "Ativo" ? "bg-success/15 text-success hover:bg-success/15" : ""}
@@ -302,9 +354,10 @@ function PessoasPage() {
             <DialogTitle>{editing ? "Editar colaborador" : "Novo colaborador"}</DialogTitle>
           </DialogHeader>
           <Tabs defaultValue="pessoais" className="pt-2">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="pessoais">Dados Pessoais</TabsTrigger>
               <TabsTrigger value="operacionais">Dados Operacionais</TabsTrigger>
+              <TabsTrigger value="ferias">Férias</TabsTrigger>
             </TabsList>
             <TabsContent value="pessoais" className="space-y-3 pt-3">
               <div className="grid gap-3 md:grid-cols-2">
@@ -386,6 +439,89 @@ function PessoasPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
+            </TabsContent>
+            <TabsContent value="ferias" className="space-y-3 pt-3">
+              <p className="text-sm text-muted-foreground">
+                Configuração inicial de férias para colaboradores existentes. Registros anteriores
+                à data de início do controle serão ignorados.
+              </p>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Status inicial de férias</Label>
+                  <Select
+                    value={form.vacation_status}
+                    onValueChange={(v) => set("vacation_status", v)}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE_VAC}>Não configurado</SelectItem>
+                      <SelectItem value="em_dia">Em dia</SelectItem>
+                      <SelectItem value="pendente">Saldo pendente</SelectItem>
+                      <SelectItem value="vencida">Férias vencidas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {form.vacation_status === "em_dia" && (
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Data de início do controle de férias *</Label>
+                    <Input
+                      type="date"
+                      value={form.vacation_control_start}
+                      onChange={(e) => set("vacation_control_start", e.target.value)}
+                    />
+                  </div>
+                )}
+                {form.vacation_status === "pendente" && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Dias pendentes *</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={form.pending_vacation_days}
+                        onChange={(e) => set("pending_vacation_days", e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Data de início do controle</Label>
+                      <Input
+                        type="date"
+                        value={form.vacation_control_start}
+                        onChange={(e) => set("vacation_control_start", e.target.value)}
+                      />
+                    </div>
+                  </>
+                )}
+                {form.vacation_status === "vencida" && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Dias vencidos *</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={form.overdue_vacation_days}
+                        onChange={(e) => set("overdue_vacation_days", e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Data de início do controle</Label>
+                      <Input
+                        type="date"
+                        value={form.vacation_control_start}
+                        onChange={(e) => set("vacation_control_start", e.target.value)}
+                      />
+                    </div>
+                  </>
+                )}
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Observações</Label>
+                  <Textarea
+                    rows={2}
+                    value={form.vacation_setup_notes}
+                    onChange={(e) => set("vacation_setup_notes", e.target.value)}
+                  />
                 </div>
               </div>
             </TabsContent>

@@ -58,6 +58,14 @@ export const STATUS_PESSOA = [
 export const JORNADAS = ["6h", "8h", "9h"] as const;
 export type Jornada = (typeof JORNADAS)[number];
 
+export const VACATION_STATUS = ["em_dia", "pendente", "vencida"] as const;
+export type VacationStatus = (typeof VACATION_STATUS)[number];
+export const VACATION_STATUS_LABEL: Record<VacationStatus, string> = {
+  em_dia: "Em Dia",
+  pendente: "Saldo Pendente",
+  vencida: "Férias Vencidas",
+};
+
 export const TIPO_PROGRAMACAO_FERIAS = [
   "Integrais",
   "Ferias+Abono",

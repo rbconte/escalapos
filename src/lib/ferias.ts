@@ -82,6 +82,12 @@ export function calcularSaldo(
   dataContratacao: string | null,
   ferias: Ferias[],
   hojeISO: string = formatISO(new Date()),
+  setup?: {
+    vacation_status?: string | null;
+    vacation_control_start?: string | null;
+    pending_vacation_days?: number | null;
+    overdue_vacation_days?: number | null;
+  } | null,
 ): SaldoFerias {
   if (!dataContratacao) {
     return {
@@ -97,7 +103,12 @@ export function calcularSaldo(
     };
   }
   const periodo = periodoAquisitivoAtual(dataContratacao, hojeISO);
-  const doPeriodo = ferias.filter((f) => {
+  const controlStart = setup?.vacation_control_start ?? null;
+  // Ignore records before control start date.
+  const feriasConsideradas = controlStart
+    ? ferias.filter((f) => f.data_inicio >= controlStart)
+    : ferias;
+  const doPeriodo = feriasConsideradas.filter((f) => {
     const pa = f.periodo_aquisitivo_inicio ?? periodo.inicio;
     return pa === periodo.inicio;
   });
@@ -112,11 +123,17 @@ export function calcularSaldo(
     if (f.data_fim <= hojeISO) gozados += gozo;
   }
   const direito = 30;
-  const saldo = Math.max(direito - programados, 0);
+  const pendenteInicial = Math.max(setup?.pending_vacation_days ?? 0, 0);
+  const vencidaInicial = Math.max(setup?.overdue_vacation_days ?? 0, 0);
+  const saldo = Math.max(direito - programados, 0) + pendenteInicial + vencidaInicial;
   const vencimento = periodo.limite;
   const diasParaVencer = Math.round(
     (parseISO(vencimento).getTime() - parseISO(hojeISO).getTime()) / MS_DAY,
   );
+  const vencida =
+    setup?.vacation_status === "vencida" ||
+    vencidaInicial > 0 ||
+    (diasParaVencer < 0 && saldo > 0);
   return {
     periodo,
     direito,
@@ -126,7 +143,7 @@ export function calcularSaldo(
     saldo,
     vencimento,
     diasParaVencer,
-    vencida: diasParaVencer < 0 && saldo > 0,
+    vencida,
   };
 }
 
