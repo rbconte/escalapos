@@ -269,10 +269,15 @@ export type Database = {
           matricula: string | null
           nome: string
           ordem: number
+          overdue_vacation_days: number
+          pending_vacation_days: number
           position: string | null
           status: string
           telefone: string | null
           tipo_conteudo_id: string | null
+          vacation_control_start: string | null
+          vacation_setup_notes: string | null
+          vacation_status: string | null
         }
         Insert: {
           contato_emergencia?: string | null
@@ -287,10 +292,15 @@ export type Database = {
           matricula?: string | null
           nome: string
           ordem?: number
+          overdue_vacation_days?: number
+          pending_vacation_days?: number
           position?: string | null
           status?: string
           telefone?: string | null
           tipo_conteudo_id?: string | null
+          vacation_control_start?: string | null
+          vacation_setup_notes?: string | null
+          vacation_status?: string | null
         }
         Update: {
           contato_emergencia?: string | null
@@ -305,10 +315,15 @@ export type Database = {
           matricula?: string | null
           nome?: string
           ordem?: number
+          overdue_vacation_days?: number
+          pending_vacation_days?: number
           position?: string | null
           status?: string
           telefone?: string | null
           tipo_conteudo_id?: string | null
+          vacation_control_start?: string | null
+          vacation_setup_notes?: string | null
+          vacation_status?: string | null
         }
         Relationships: [
           {
