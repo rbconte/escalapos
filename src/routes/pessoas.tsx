@@ -70,7 +70,14 @@ type FormState = {
   endereco: string;
   jornada_padrao: string;
   status: string;
+  vacation_status: string;
+  vacation_control_start: string;
+  pending_vacation_days: string;
+  overdue_vacation_days: string;
+  vacation_setup_notes: string;
 };
+
+const NONE_VAC = "__none_vac__";
 
 const EMPTY_FORM: FormState = {
   nome: "",
@@ -85,6 +92,11 @@ const EMPTY_FORM: FormState = {
   endereco: "",
   jornada_padrao: "8h",
   status: "Ativo",
+  vacation_status: NONE_VAC,
+  vacation_control_start: "",
+  pending_vacation_days: "0",
+  overdue_vacation_days: "0",
+  vacation_setup_notes: "",
 };
 
 function PessoasPage() {
