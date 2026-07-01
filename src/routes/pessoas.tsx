@@ -507,6 +507,7 @@ function PessoasPage() {
                 </div>
               </div>
             </TabsContent>
+          </Tabs>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button onClick={() => save.mutate()} disabled={save.isPending}>Salvar</Button>
