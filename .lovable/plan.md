@@ -1,106 +1,101 @@
-# Evolução: Gestão de Pessoas + Plano de Férias
+# Refactor do Módulo de Férias — Gestão por Período Aquisitivo
 
-## Escopo
-Expandir cadastro de pessoas, criar módulo de Plano de Férias como fonte única, com sincronização automática com Escala Operacional e Planejamento Macro, incluindo abono pecuniário, alertas e dashboard.
+## Objetivo
+Migrar o módulo de férias de "saldo único por colaborador" para "múltiplos períodos aquisitivos por colaborador", cada um com seu próprio ciclo, saldo e status. Preservar UI existente, corrigir sincronização com Escala e Planejamento Macro.
 
-## 1. Banco de dados (migrations)
+---
 
-**Tabela `pessoas` — novos campos:**
-- `matricula` (text, único)
-- `position` (text) — cargo
-- `data_contratacao` (date)
-- `telefone`, `email_corporativo`, `email_pessoal` (text)
-- `contato_emergencia` (text)
-- `endereco` (text)
-- `jornada_padrao` (text: '6h' | '8h' | '9h')
-- Ampliar `status`: `Ativo | Férias | Licença | Afastado | Desligado`
+## 1. Modelo de dados
 
-**Tabela `ferias` — evoluir (hoje só tem início/fim/status/observação):**
-- `dias_gozo` (int)
-- `dias_abono` (int, default 0)
-- `tipo_programacao` (text: 'Integrais' | 'Ferias+Abono' | 'Fracionadas' | 'Fracionadas+Abono')
-- `periodo_aquisitivo_inicio` (date) — base para cálculo
-- `periodo_aquisitivo_fim` (date)
-- Manter `data_inicio`, `data_fim`, `status`
+**Nova tabela `ferias_periodos`** (períodos aquisitivos por pessoa):
+- `pessoa_id`, `numero` (1, 2, 3…)
+- `inicio_aquisitivo`, `fim_aquisitivo`, `data_expiracao`
+- `dias_direito` (default 30), `dias_vendidos` (abono já quitado no período)
+- `status` computado (Accruing | Available | Partially Used | Scheduled | Completed | Expiring Soon | Overdue)
+- `origem` (`gerado` | `setup_inicial`) — para preservar setup atual
 
-**Função de cálculo (SQL):**
-- `calcular_saldo_ferias(pessoa_id)` retorna períodos aquisitivos com dias de direito, programados, gozados, abonados e saldo, usando `data_contratacao`.
+**Alteração em `ferias`** (agendamentos):
+- Adicionar `periodo_id` (FK → `ferias_periodos.id`) para vincular cada agendamento a um período específico.
+- Manter colunas atuais (`data_inicio`, `data_fim`, `dias_gozo`, `dias_abono`, `tipo_programacao`, `status`, `observacao`, `periodo_aquisitivo_inicio/fim`).
 
-## 2. Domínio & queries (`src/lib/`)
-- Atualizar tipos `Pessoa` e `Ferias` em `domain.ts`.
-- Em `queries.ts`: novos hooks `usePessoaCompleta`, `useSaldoFerias(pessoaId)`, `useFeriasProgramadas`, `useAlertasFerias`, mutations `createFerias`, `updateFerias`, `deleteFerias`.
-- Helpers: `calcularPeriodoAquisitivo(dataContratacao, hoje)`, `calcularSaldo(direito, programados, gozados, abonados)`, `validarAbono(gozo, abono, saldo)`.
+**Função SQL `gerar_periodos_aquisitivos(pessoa_id)`**:
+- Cria períodos desde `data_contratacao` (ou `vacation_control_start`) até hoje + 1 ano.
+- Mapeia `pending_vacation_days` / `overdue_vacation_days` (setup inicial) para o período correspondente.
 
-## 3. Cadastro de Pessoas (`src/routes/pessoas.tsx`)
-- Form expandido com abas: **Dados Pessoais**, **Dados Operacionais**.
-- Filtros: nome, matrícula, função, cargo, status, data de contratação (range).
-- Tabela com novas colunas principais (matrícula, função, cargo, jornada, status).
+**Trigger** em `ferias` (insert/update/delete) → invalida cache via `updated_at` no `pessoas` e permite refetch coordenado no client.
 
-## 4. Módulo Plano de Férias (novo)
+## 2. Lógica de domínio (`src/lib/ferias.ts`)
 
-**Sidebar:** novo item "Plano de Férias" → `/ferias`.
+Novos tipos e helpers, preservando os atuais:
+- `PeriodoFerias` (com `usados`, `vendidos`, `agendados`, `restantes`, `status`).
+- `calcularPeriodos(pessoa, ferias, hoje)` → array de períodos com métricas.
+- `statusDoPeriodo(p, hoje)` → um dos 7 status.
+- `alertasDoPeriodo(p)` → alertas por período (`overdue`, `expira em 60d`, `expira em 30d`, `sem agendamento`).
+- Manter `calcularSaldo` (soma agregada dos períodos) para compatibilidade.
 
-**Rotas:**
-- `/ferias` — dashboard + lista (tabs)
-- `/ferias/calendario` — mapa anual
+## 3. UI — `/ferias`
 
-### 4.1 Dashboard (`/ferias`)
-Cards:
-- Em férias hoje
-- Programadas nos próximos 30 dias
-- Vencendo em 60 dias
-- Vencendo em 30 dias
-- Vencidas
-- Dias abonados no período (ano atual)
-- Saldo total da equipe
+**Dashboard** (substitui cards atuais):
+- Colaboradores em férias hoje
+- Colaboradores com férias vencidas
+- Períodos aquisitivos vencidos
+- Vencendo em 60 dias / em 30 dias
+- Colaboradores sem férias programadas
+- Dias disponíveis / programados / vendidos
+- Mantém "Configuração pendente" (setup inicial)
 
-### 4.2 Lista por colaborador
-Tabela: nome, função, contratação, período aquisitivo, direito, programados, gozados, abonados, saldo, status, alertas (badges).
-Ação "Programar férias" → dialog.
+**Aba Colaboradores** — nova visão por período:
+- Card/linha expansível por colaborador com lista de períodos:
+  - `2024/2025 • 30 direito • 0 usados • 30 restantes • 🔴 Vencida`
+  - `2025/2026 • 30 direito • 20 agendados • 10 vendidos • 🟡 Agendada`
+  - `2026/2027 • Adquirindo • 18 dias acumulados`
+- Ação "Programar" abre dialog já com dropdown de período.
 
-### 4.3 Dialog de programação
-- Seleção do tipo de programação.
-- Opção 1: data início + data fim.
-- Opção 2: data início + qtd de dias (calcula fim).
-- Campos: dias de gozo, dias de abono (até 10/período).
-- Validação: gozo + abono ≤ saldo (mensagem exata do PRD).
-- Validação operacional: se houver `escalas` ou `programa_necessidades`/alocações no período → confirma "Deseja continuar?" (não bloqueia).
+**Dialog Programar Férias**:
+- Novo campo obrigatório: **Período aquisitivo** (dropdown com períodos disponíveis, default = mais antigo com saldo).
+- Validação por período (não pelo total): gozo + abono ≤ restantes do período; abono acumulado do período ≤ 10.
+- Warning (não bloqueia) se houver conflito com `escalas` ou `programa_necessidades`.
 
-### 4.4 Calendário anual (`/ferias/calendario`)
-Grade meses × pessoas, blocos coloridos por período. Identifica concentração.
+**Timeline / Calendário anual**:
+- Cada bloco mostra: dias de gozo, dias vendidos, período (`2025/2026`), status.
 
-## 5. Sincronização global
-- **Fonte única:** tabela `ferias`.
-- `Escala Operacional` e `Planejamento Macro` consultam `ferias` para marcar dias gozados (não os abonados) como indisponíveis.
-- Dias gozados:
-  - Pessoa não aparece como disponível na Escala.
-  - Cobertura por produto recalcula déficit (necessidade − disponíveis).
-  - Planejamento Macro mostra ausência no período.
-- Dias abonados: não impactam escala/cobertura.
-- Trigger ou função: ao inserir/alterar férias, invalidar caches de queries relacionadas no client (via `queryClient.invalidateQueries`).
+## 4. Sincronização (correção crítica)
 
-## 6. Alertas
-Função utilitária `getAlertasFerias(pessoa)`:
-- 60 dias para vencer + sem programação → warning
-- 30 dias para vencer + sem programação → crítico
-- Vencidas → prioritário
-Exibir em badges no cadastro, lista de férias e dashboard.
+Fonte única = `ferias`. Ao criar/editar/excluir:
+- `queryClient.invalidateQueries` em `["ferias"]`, `["escalas"]`, `["programa_necessidades"]`, `["gestao"]`.
+- Atualizar `src/lib/gestao/metricas.ts` para considerar `data_inicio..data_fim` das férias (apenas dias de gozo, não abono/vendidos) como indisponíveis na cobertura.
+- Escala Operacional e Planejamento Macro passam a consultar `ferias` diretamente para marcar ausência.
 
-## 7. Indicadores de cobertura
-- Atualizar `metricas.ts` / Gestão > Operação para considerar férias gozadas no cálculo de disponíveis.
-- Exibir "Déficit operacional" quando disponíveis < necessidade.
+## 5. Alertas
+
+Alertas gerados por período, não por colaborador:
+- 🔴 Período vencido
+- 🟡 Vence em ≤ 60 dias sem agendamento
+- 🟠 Sem férias agendadas em nenhum período disponível
+Exibidos em badges no dashboard, lista e cadastro.
+
+## 6. Validação (só avisa, não bloqueia)
+
+Ao salvar programação:
+- Conflito com `escalas` do período
+- Conflito com `programa_necessidades` (cobertura)
+- Sobreposição com outra `ferias` do mesmo colaborador
+
+Todos como warnings com "Deseja continuar?".
+
+## 7. Compatibilidade
+
+- Manter API pública de `calcularSaldo` e componentes existentes que a consomem.
+- Setup inicial (`vacation_status`, `pending_vacation_days`, `overdue_vacation_days`) continua funcionando — mapeado para o período correspondente ao gerar.
+- Sem duplicar registros: `ferias_periodos` é gerado sob demanda a partir de `data_contratacao`; `ferias` mantém agendamentos.
 
 ## Ordem de execução
-1. Migration (pessoas + ferias + função de cálculo).
-2. Tipos e queries.
-3. Cadastro de pessoas expandido.
-4. Módulo Plano de Férias (dashboard + lista + dialog).
-5. Calendário anual.
-6. Integração com Escala e Planejamento Macro (cobertura/déficit).
-7. Alertas globais.
+1. Migration: `ferias_periodos` + coluna `periodo_id` em `ferias` + função de geração.
+2. Helpers em `ferias.ts` (novos tipos, `calcularPeriodos`).
+3. Refactor do `/ferias` (dashboard, aba colaboradores, dialog com dropdown de período).
+4. Timeline/calendário com blocos ampliados.
+5. Sync: invalidations + atualização de `metricas.ts`.
+6. Alertas por período.
 
 ## Fora do escopo
-- Notificações por e-mail.
-- Workflow de aprovação de férias.
-- Histórico/auditoria de alterações.
-- Exportação específica do Plano de Férias (pode reaproveitar export existente em fase futura).
+- Notificações por e-mail, workflow de aprovação, auditoria, exportação dedicada.
