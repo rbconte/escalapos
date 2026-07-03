@@ -29,10 +29,20 @@ import { pessoasQuery, todasFeriasQuery, escalasQuery } from "@/lib/queries";
 import type { PessoaComFuncao } from "@/lib/domain";
 import { TIPO_PROGRAMACAO_FERIAS, TIPO_PROGRAMACAO_LABEL, type TipoProgramacaoFerias } from "@/lib/domain";
 import {
-  calcularPeriodos, diffDaysInclusive, fimPorQuantidade,
+  calcularPeriodos, diffDaysInclusive, fimPorQuantidade, diasAcumuladosAte,
   validarProgramacao, STATUS_PERIODO_STYLE,
   type Ferias, type PeriodoFerias,
 } from "@/lib/ferias";
+
+const POLICY_KEY = "ferias.allowScheduleAccruing";
+function getAllowAccruing(): boolean {
+  if (typeof window === "undefined") return true;
+  const v = window.localStorage.getItem(POLICY_KEY);
+  return v === null ? true : v === "true";
+}
+function setAllowAccruing(v: boolean) {
+  if (typeof window !== "undefined") window.localStorage.setItem(POLICY_KEY, String(v));
+}
 
 const TODAY = () => new Date().toISOString().slice(0, 10);
 
