@@ -460,13 +460,18 @@ function ProgramarFeriasDialog({
 
   // Validação por período selecionado
   const abonadosNoPeriodo = periodoSel?.vendidos ?? 0;
-  const erro = periodoSel
-    ? validarProgramacao({
+  let erro: string | null = periodoSel ? null : "Selecione um período aquisitivo.";
+  if (periodoSel) {
+    if (emAquisicao && diasGozo + diasAbono > maxSchedulable) {
+      erro = "Os dias solicitados ultrapassam o saldo acumulado disponível na data de início das férias.";
+    } else {
+      erro = validarProgramacao({
         diasGozo, diasAbono,
         saldo: maxSchedulable,
         abonadosNoPeriodo,
-      })
-    : "Selecione um período aquisitivo.";
+      });
+    }
+  }
 
   // Conflitos: escala existente
   const conflitoEscala = useMemo(() => {
