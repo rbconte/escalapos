@@ -29,10 +29,20 @@ import { pessoasQuery, todasFeriasQuery, escalasQuery } from "@/lib/queries";
 import type { PessoaComFuncao } from "@/lib/domain";
 import { TIPO_PROGRAMACAO_FERIAS, TIPO_PROGRAMACAO_LABEL, type TipoProgramacaoFerias } from "@/lib/domain";
 import {
-  calcularPeriodos, diffDaysInclusive, fimPorQuantidade,
+  calcularPeriodos, diffDaysInclusive, fimPorQuantidade, diasAcumuladosAte,
   validarProgramacao, STATUS_PERIODO_STYLE,
   type Ferias, type PeriodoFerias,
 } from "@/lib/ferias";
+
+const POLICY_KEY = "ferias.allowScheduleAccruing";
+function getAllowAccruing(): boolean {
+  if (typeof window === "undefined") return true;
+  const v = window.localStorage.getItem(POLICY_KEY);
+  return v === null ? true : v === "true";
+}
+function setAllowAccruing(v: boolean) {
+  if (typeof window !== "undefined") window.localStorage.setItem(POLICY_KEY, String(v));
+}
 
 const TODAY = () => new Date().toISOString().slice(0, 10);
 
@@ -87,6 +97,7 @@ function FeriasPage() {
   const [search, setSearch] = useState("");
   const [progPessoa, setProgPessoa] = useState<PessoaComFuncao | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [allowAccruing, setAllowAccruingState] = useState<boolean>(() => getAllowAccruing());
 
   const ativos = useMemo(
     () => pessoas.filter((p) => p.status !== "Desligado" && p.status !== "Inativo"),
@@ -194,6 +205,24 @@ function FeriasPage() {
         </TabsList>
 
         <TabsContent value="dashboard" className="space-y-4">
+          <div className="flex items-center justify-between rounded-xl border bg-card p-3 shadow-soft">
+            <div>
+              <div className="text-sm font-medium">Política: agendar em períodos em aquisição</div>
+              <div className="text-xs text-muted-foreground">
+                Quando ativado, colaboradores podem agendar férias usando o período aquisitivo em curso,
+                com base nos dias acumulados até a data de início.
+              </div>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                checked={allowAccruing}
+                onChange={(e) => { setAllowAccruing(e.target.checked); setAllowAccruingState(e.target.checked); }}
+              />
+              {allowAccruing ? "Sim" : "Não"}
+            </label>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             <KpiCard label="Colaboradores em férias hoje" value={emFeriasHoje} />
             <KpiCard label="Colaboradores com férias vencidas" value={comVencidas} tone={comVencidas > 0 ? "danger" : undefined} />
@@ -346,6 +375,7 @@ function FeriasPage() {
           onClose={() => setProgPessoa(null)}
           onSaved={handleSaved}
           hoje={hoje}
+          allowAccruing={allowAccruing}
         />
       )}
     </PageShell>
@@ -378,7 +408,7 @@ function addDays(iso: string, days: number) {
 /* --------------------------- Programar dialog --------------------------- */
 
 function ProgramarFeriasDialog({
-  pessoa, periodos, ferias, escalasIds, hoje, onClose, onSaved,
+  pessoa, periodos, ferias, escalasIds, hoje, onClose, onSaved, allowAccruing,
 }: {
   pessoa: PessoaComFuncao;
   periodos: PeriodoFerias[];
@@ -387,12 +417,14 @@ function ProgramarFeriasDialog({
   hoje: string;
   onClose: () => void;
   onSaved: () => void;
+  allowAccruing: boolean;
 }) {
-  // Períodos disponíveis para programar (com saldo restante e não em aquisição pura)
-  const disponiveis = periodos.filter((p) => p.restantes > 0);
-  // Default: mais antigo com saldo
+  // Períodos selecionáveis: com saldo restante OU em aquisição (se política permite)
+  const selecionaveis = periodos.filter(
+    (p) => p.restantes > 0 || (allowAccruing && p.emAquisicao),
+  );
   const defaultPeriodo =
-    disponiveis.slice().sort((a, b) => a.inicio.localeCompare(b.inicio))[0] ?? periodos[0];
+    selecionaveis.slice().sort((a, b) => a.inicio.localeCompare(b.inicio))[0] ?? periodos[0];
 
   const [periodoInicio, setPeriodoInicio] = useState<string>(defaultPeriodo?.inicio ?? "");
   const periodoSel = periodos.find((p) => p.inicio === periodoInicio) ?? defaultPeriodo;
@@ -411,16 +443,35 @@ function ProgramarFeriasDialog({
     : qtdDias;
   const fimCalculado = modo === "intervalo" ? dataFim : fimPorQuantidade(dataInicio, qtdDias);
 
+  // Cálculo dinâmico para períodos em aquisição
+  const emAquisicao = !!periodoSel?.emAquisicao;
+  const acumuladoHoje = periodoSel ? diasAcumuladosAte(periodoSel.inicio, hoje) : 0;
+  const acumuladoInicio = periodoSel && dataInicio
+    ? diasAcumuladosAte(periodoSel.inicio, dataInicio)
+    : 0;
+  const consumidoPeriodo = periodoSel
+    ? periodoSel.usados + periodoSel.agendados + periodoSel.vendidos
+    : 0;
+  const maxSchedulable = periodoSel
+    ? emAquisicao
+      ? Math.max(acumuladoInicio - consumidoPeriodo, 0)
+      : periodoSel.restantes
+    : 0;
+
   // Validação por período selecionado
-  const restantesPeriodo = periodoSel?.restantes ?? 0;
   const abonadosNoPeriodo = periodoSel?.vendidos ?? 0;
-  const erro = periodoSel
-    ? validarProgramacao({
+  let erro: string | null = periodoSel ? null : "Selecione um período aquisitivo.";
+  if (periodoSel) {
+    if (emAquisicao && diasGozo + diasAbono > maxSchedulable) {
+      erro = "Os dias solicitados ultrapassam o saldo acumulado disponível na data de início das férias.";
+    } else {
+      erro = validarProgramacao({
         diasGozo, diasAbono,
-        saldo: restantesPeriodo,
+        saldo: maxSchedulable,
         abonadosNoPeriodo,
-      })
-    : "Selecione um período aquisitivo.";
+      });
+    }
+  }
 
   // Conflitos: escala existente
   const conflitoEscala = useMemo(() => {
@@ -482,7 +533,9 @@ function ProgramarFeriasDialog({
             <DialogTitle>Programar férias — {pessoa.nome}</DialogTitle>
             <DialogDescription>
               {periodoSel
-                ? <>Período <strong>{periodoSel.label}</strong> — restantes: <strong>{restantesPeriodo}</strong> dias · vence {periodoSel.limite}</>
+                ? emAquisicao
+                  ? <>Período <strong>{periodoSel.label}</strong> — em aquisição · acumulado hoje: <strong>{acumuladoHoje}</strong>/30 dias</>
+                  : <>Período <strong>{periodoSel.label}</strong> — restantes: <strong>{maxSchedulable}</strong> dias · vence {periodoSel.limite}</>
                 : "Nenhum período disponível para programação."}
             </DialogDescription>
           </DialogHeader>
@@ -493,15 +546,23 @@ function ProgramarFeriasDialog({
               <Select value={periodoInicio} onValueChange={setPeriodoInicio}>
                 <SelectTrigger><SelectValue placeholder="Selecione o período" /></SelectTrigger>
                 <SelectContent>
-                  {periodos.map((p) => (
-                    <SelectItem key={p.inicio} value={p.inicio} disabled={p.restantes === 0}>
-                      {p.label} — {p.restantes} dias restantes {p.status === "Vencida" ? "⚠️ vencida" : ""}
-                    </SelectItem>
-                  ))}
+                  {periodos.map((p) => {
+                    const acumulado = diasAcumuladosAte(p.inicio, hoje);
+                    const isSelectable = p.restantes > 0 || (allowAccruing && p.emAquisicao);
+                    const label = p.emAquisicao
+                      ? `🟡 ${p.label} — Adquirindo (${acumulado}/30 dias)`
+                      : `${p.label} — ${p.restantes} dias restantes${p.status === "Vencida" ? " ⚠️ vencida" : ""}`;
+                    return (
+                      <SelectItem key={p.inicio} value={p.inicio} disabled={!isSelectable}>
+                        {label}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
                 Padrão: período mais antigo com saldo disponível.
+                {allowAccruing ? " Períodos em aquisição podem ser agendados com base na data de início." : ""}
               </p>
             </div>
 
@@ -567,10 +628,17 @@ function ProgramarFeriasDialog({
               <Textarea rows={2} value={observacao} onChange={(e) => setObservacao(e.target.value)} />
             </div>
 
-            <div className="rounded-lg border bg-muted/30 p-3 text-xs">
-              Total: <strong>{diasGozo + diasAbono}</strong> ({diasGozo} gozo + {diasAbono} abono).
-              {periodoSel && (
-                <> Saldo do período após: {Math.max(restantesPeriodo - diasGozo - diasAbono, 0)}.</>
+            <div className="rounded-lg border bg-muted/30 p-3 text-xs space-y-1">
+              <div>Total: <strong>{diasGozo + diasAbono}</strong> ({diasGozo} gozo + {diasAbono} abono).</div>
+              {periodoSel && emAquisicao && (
+                <>
+                  <div>Acumulado atual: <strong>{acumuladoHoje}</strong> dias.</div>
+                  <div>Acumulado na data de início ({dataInicio}): <strong>{acumuladoInicio}</strong> dias.</div>
+                  <div>Máximo agendável: <strong>{maxSchedulable}</strong> dias.</div>
+                </>
+              )}
+              {periodoSel && !emAquisicao && (
+                <div>Saldo do período após: {Math.max(maxSchedulable - diasGozo - diasAbono, 0)}.</div>
               )}
             </div>
 

@@ -109,6 +109,17 @@ export type PeriodoFerias = PeriodoAquisitivo & {
 
 const DIREITO_ANO = 30;
 
+/** Days accrued for a period between its start and a target date (2.5/mo, capped at 30). */
+export function diasAcumuladosAte(periodoInicio: string, alvoISO: string): number {
+  const meses = Math.max(
+    0,
+    Math.floor(
+      (parseISO(alvoISO).getTime() - parseISO(periodoInicio).getTime()) / (MS_DAY * 30),
+    ),
+  );
+  return Math.min(DIREITO_ANO, meses * 2.5);
+}
+
 function isBefore(a: string, b: string) {
   return a < b;
 }
