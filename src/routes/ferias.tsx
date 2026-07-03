@@ -375,6 +375,7 @@ function FeriasPage() {
           onClose={() => setProgPessoa(null)}
           onSaved={handleSaved}
           hoje={hoje}
+          allowAccruing={allowAccruing}
         />
       )}
     </PageShell>
