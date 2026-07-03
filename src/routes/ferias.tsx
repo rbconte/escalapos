@@ -528,7 +528,9 @@ function ProgramarFeriasDialog({
             <DialogTitle>Programar férias — {pessoa.nome}</DialogTitle>
             <DialogDescription>
               {periodoSel
-                ? <>Período <strong>{periodoSel.label}</strong> — restantes: <strong>{restantesPeriodo}</strong> dias · vence {periodoSel.limite}</>
+                ? emAquisicao
+                  ? <>Período <strong>{periodoSel.label}</strong> — em aquisição · acumulado hoje: <strong>{acumuladoHoje}</strong>/30 dias</>
+                  : <>Período <strong>{periodoSel.label}</strong> — restantes: <strong>{maxSchedulable}</strong> dias · vence {periodoSel.limite}</>
                 : "Nenhum período disponível para programação."}
             </DialogDescription>
           </DialogHeader>
@@ -539,15 +541,23 @@ function ProgramarFeriasDialog({
               <Select value={periodoInicio} onValueChange={setPeriodoInicio}>
                 <SelectTrigger><SelectValue placeholder="Selecione o período" /></SelectTrigger>
                 <SelectContent>
-                  {periodos.map((p) => (
-                    <SelectItem key={p.inicio} value={p.inicio} disabled={p.restantes === 0}>
-                      {p.label} — {p.restantes} dias restantes {p.status === "Vencida" ? "⚠️ vencida" : ""}
-                    </SelectItem>
-                  ))}
+                  {periodos.map((p) => {
+                    const acumulado = diasAcumuladosAte(p.inicio, hoje);
+                    const isSelectable = p.restantes > 0 || (allowAccruing && p.emAquisicao);
+                    const label = p.emAquisicao
+                      ? `🟡 ${p.label} — Adquirindo (${acumulado}/30 dias)`
+                      : `${p.label} — ${p.restantes} dias restantes${p.status === "Vencida" ? " ⚠️ vencida" : ""}`;
+                    return (
+                      <SelectItem key={p.inicio} value={p.inicio} disabled={!isSelectable}>
+                        {label}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
                 Padrão: período mais antigo com saldo disponível.
+                {allowAccruing ? " Períodos em aquisição podem ser agendados com base na data de início." : ""}
               </p>
             </div>
 
