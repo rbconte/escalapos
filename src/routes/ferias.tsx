@@ -97,6 +97,7 @@ function FeriasPage() {
   const [search, setSearch] = useState("");
   const [progPessoa, setProgPessoa] = useState<PessoaComFuncao | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [allowAccruing, setAllowAccruingState] = useState<boolean>(() => getAllowAccruing());
 
   const ativos = useMemo(
     () => pessoas.filter((p) => p.status !== "Desligado" && p.status !== "Inativo"),
