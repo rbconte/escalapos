@@ -623,10 +623,17 @@ function ProgramarFeriasDialog({
               <Textarea rows={2} value={observacao} onChange={(e) => setObservacao(e.target.value)} />
             </div>
 
-            <div className="rounded-lg border bg-muted/30 p-3 text-xs">
-              Total: <strong>{diasGozo + diasAbono}</strong> ({diasGozo} gozo + {diasAbono} abono).
-              {periodoSel && (
-                <> Saldo do período após: {Math.max(restantesPeriodo - diasGozo - diasAbono, 0)}.</>
+            <div className="rounded-lg border bg-muted/30 p-3 text-xs space-y-1">
+              <div>Total: <strong>{diasGozo + diasAbono}</strong> ({diasGozo} gozo + {diasAbono} abono).</div>
+              {periodoSel && emAquisicao && (
+                <>
+                  <div>Acumulado atual: <strong>{acumuladoHoje}</strong> dias.</div>
+                  <div>Acumulado na data de início ({dataInicio}): <strong>{acumuladoInicio}</strong> dias.</div>
+                  <div>Máximo agendável: <strong>{maxSchedulable}</strong> dias.</div>
+                </>
+              )}
+              {periodoSel && !emAquisicao && (
+                <div>Saldo do período após: {Math.max(maxSchedulable - diasGozo - diasAbono, 0)}.</div>
               )}
             </div>
 
