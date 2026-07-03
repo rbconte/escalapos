@@ -205,6 +205,24 @@ function FeriasPage() {
         </TabsList>
 
         <TabsContent value="dashboard" className="space-y-4">
+          <div className="flex items-center justify-between rounded-xl border bg-card p-3 shadow-soft">
+            <div>
+              <div className="text-sm font-medium">Política: agendar em períodos em aquisição</div>
+              <div className="text-xs text-muted-foreground">
+                Quando ativado, colaboradores podem agendar férias usando o período aquisitivo em curso,
+                com base nos dias acumulados até a data de início.
+              </div>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                checked={allowAccruing}
+                onChange={(e) => { setAllowAccruing(e.target.checked); setAllowAccruingState(e.target.checked); }}
+              />
+              {allowAccruing ? "Sim" : "Não"}
+            </label>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             <KpiCard label="Colaboradores em férias hoje" value={emFeriasHoje} />
             <KpiCard label="Colaboradores com férias vencidas" value={comVencidas} tone={comVencidas > 0 ? "danger" : undefined} />
