@@ -408,7 +408,7 @@ function addDays(iso: string, days: number) {
 /* --------------------------- Programar dialog --------------------------- */
 
 function ProgramarFeriasDialog({
-  pessoa, periodos, ferias, escalasIds, hoje, onClose, onSaved,
+  pessoa, periodos, ferias, escalasIds, hoje, onClose, onSaved, allowAccruing,
 }: {
   pessoa: PessoaComFuncao;
   periodos: PeriodoFerias[];
@@ -417,12 +417,14 @@ function ProgramarFeriasDialog({
   hoje: string;
   onClose: () => void;
   onSaved: () => void;
+  allowAccruing: boolean;
 }) {
-  // Períodos disponíveis para programar (com saldo restante e não em aquisição pura)
-  const disponiveis = periodos.filter((p) => p.restantes > 0);
-  // Default: mais antigo com saldo
+  // Períodos selecionáveis: com saldo restante OU em aquisição (se política permite)
+  const selecionaveis = periodos.filter(
+    (p) => p.restantes > 0 || (allowAccruing && p.emAquisicao),
+  );
   const defaultPeriodo =
-    disponiveis.slice().sort((a, b) => a.inicio.localeCompare(b.inicio))[0] ?? periodos[0];
+    selecionaveis.slice().sort((a, b) => a.inicio.localeCompare(b.inicio))[0] ?? periodos[0];
 
   const [periodoInicio, setPeriodoInicio] = useState<string>(defaultPeriodo?.inicio ?? "");
   const periodoSel = periodos.find((p) => p.inicio === periodoInicio) ?? defaultPeriodo;
@@ -441,13 +443,27 @@ function ProgramarFeriasDialog({
     : qtdDias;
   const fimCalculado = modo === "intervalo" ? dataFim : fimPorQuantidade(dataInicio, qtdDias);
 
+  // Cálculo dinâmico para períodos em aquisição
+  const emAquisicao = !!periodoSel?.emAquisicao;
+  const acumuladoHoje = periodoSel ? diasAcumuladosAte(periodoSel.inicio, hoje) : 0;
+  const acumuladoInicio = periodoSel && dataInicio
+    ? diasAcumuladosAte(periodoSel.inicio, dataInicio)
+    : 0;
+  const consumidoPeriodo = periodoSel
+    ? periodoSel.usados + periodoSel.agendados + periodoSel.vendidos
+    : 0;
+  const maxSchedulable = periodoSel
+    ? emAquisicao
+      ? Math.max(acumuladoInicio - consumidoPeriodo, 0)
+      : periodoSel.restantes
+    : 0;
+
   // Validação por período selecionado
-  const restantesPeriodo = periodoSel?.restantes ?? 0;
   const abonadosNoPeriodo = periodoSel?.vendidos ?? 0;
   const erro = periodoSel
     ? validarProgramacao({
         diasGozo, diasAbono,
-        saldo: restantesPeriodo,
+        saldo: maxSchedulable,
         abonadosNoPeriodo,
       })
     : "Selecione um período aquisitivo.";
