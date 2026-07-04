@@ -8,6 +8,7 @@ import {
   CalendarSearch,
   LayoutGrid,
   Layers,
+  TrendingUp,
   Tv,
   Users,
   Users2,
@@ -36,6 +37,10 @@ const operacional = [
   { title: "Conteúdos", url: "/conteudos", icon: Layers },
   { title: "Programas", url: "/programas", icon: Tv },
   { title: "Ilhas", url: "/ilhas", icon: LayoutGrid },
+];
+
+const performance = [
+  { title: "Performance", url: "/performance", icon: TrendingUp },
 ];
 
 const gestao = [
@@ -79,6 +84,28 @@ export function AppSidebar() {
                   <SidebarMenuButton
                     asChild
                     isActive={isActive(item.url, item.exact)}
+                    tooltip={item.title}
+                  >
+                    <Link to={item.url} className="flex items-center gap-2.5">
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Performance</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {performance.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive(item.url)}
                     tooltip={item.title}
                   >
                     <Link to={item.url} className="flex items-center gap-2.5">
