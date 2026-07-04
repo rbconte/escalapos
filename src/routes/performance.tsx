@@ -983,8 +983,10 @@ function RecordDialog({
         recognition_tag: tipo === "reconhecimento" ? tag || null : null,
         observacao: obs.trim() || null,
       };
-      const { error } = await supabase
-        .from("performance_records" as never)
+      const { error } = await (supabase as unknown as {
+        from: (t: string) => { insert: (p: unknown) => Promise<{ error: Error | null }> };
+      })
+        .from("performance_records")
         .insert(payload);
       if (error) throw error;
     },

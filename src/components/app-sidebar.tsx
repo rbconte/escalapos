@@ -8,6 +8,7 @@ import {
   CalendarSearch,
   LayoutGrid,
   Layers,
+  TrendingUp,
   Tv,
   Users,
   Users2,

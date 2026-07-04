@@ -13,6 +13,7 @@ import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as ProgramasRouteImport } from './routes/programas'
 import { Route as PlanejamentoRouteImport } from './routes/planejamento'
 import { Route as PessoasRouteImport } from './routes/pessoas'
+import { Route as PerformanceRouteImport } from './routes/performance'
 import { Route as IlhasRouteImport } from './routes/ilhas'
 import { Route as GestaoRouteImport } from './routes/gestao'
 import { Route as FuncoesRouteImport } from './routes/funcoes'
@@ -43,6 +44,11 @@ const PlanejamentoRoute = PlanejamentoRouteImport.update({
 const PessoasRoute = PessoasRouteImport.update({
   id: '/pessoas',
   path: '/pessoas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PerformanceRoute = PerformanceRouteImport.update({
+  id: '/performance',
+  path: '/performance',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IlhasRoute = IlhasRouteImport.update({
@@ -108,6 +114,7 @@ export interface FileRoutesByFullPath {
   '/funcoes': typeof FuncoesRoute
   '/gestao': typeof GestaoRouteWithChildren
   '/ilhas': typeof IlhasRoute
+  '/performance': typeof PerformanceRoute
   '/pessoas': typeof PessoasRoute
   '/planejamento': typeof PlanejamentoRoute
   '/programas': typeof ProgramasRoute
@@ -124,6 +131,7 @@ export interface FileRoutesByTo {
   '/ferias': typeof FeriasRoute
   '/funcoes': typeof FuncoesRoute
   '/ilhas': typeof IlhasRoute
+  '/performance': typeof PerformanceRoute
   '/pessoas': typeof PessoasRoute
   '/planejamento': typeof PlanejamentoRoute
   '/programas': typeof ProgramasRoute
@@ -142,6 +150,7 @@ export interface FileRoutesById {
   '/funcoes': typeof FuncoesRoute
   '/gestao': typeof GestaoRouteWithChildren
   '/ilhas': typeof IlhasRoute
+  '/performance': typeof PerformanceRoute
   '/pessoas': typeof PessoasRoute
   '/planejamento': typeof PlanejamentoRoute
   '/programas': typeof ProgramasRoute
@@ -161,6 +170,7 @@ export interface FileRouteTypes {
     | '/funcoes'
     | '/gestao'
     | '/ilhas'
+    | '/performance'
     | '/pessoas'
     | '/planejamento'
     | '/programas'
@@ -177,6 +187,7 @@ export interface FileRouteTypes {
     | '/ferias'
     | '/funcoes'
     | '/ilhas'
+    | '/performance'
     | '/pessoas'
     | '/planejamento'
     | '/programas'
@@ -194,6 +205,7 @@ export interface FileRouteTypes {
     | '/funcoes'
     | '/gestao'
     | '/ilhas'
+    | '/performance'
     | '/pessoas'
     | '/planejamento'
     | '/programas'
@@ -212,6 +224,7 @@ export interface RootRouteChildren {
   FuncoesRoute: typeof FuncoesRoute
   GestaoRoute: typeof GestaoRouteWithChildren
   IlhasRoute: typeof IlhasRoute
+  PerformanceRoute: typeof PerformanceRoute
   PessoasRoute: typeof PessoasRoute
   PlanejamentoRoute: typeof PlanejamentoRoute
   ProgramasRoute: typeof ProgramasRoute
@@ -246,6 +259,13 @@ declare module '@tanstack/react-router' {
       path: '/pessoas'
       fullPath: '/pessoas'
       preLoaderRoute: typeof PessoasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/performance': {
+      id: '/performance'
+      path: '/performance'
+      fullPath: '/performance'
+      preLoaderRoute: typeof PerformanceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ilhas': {
@@ -354,6 +374,7 @@ const rootRouteChildren: RootRouteChildren = {
   FuncoesRoute: FuncoesRoute,
   GestaoRoute: GestaoRouteWithChildren,
   IlhasRoute: IlhasRoute,
+  PerformanceRoute: PerformanceRoute,
   PessoasRoute: PessoasRoute,
   PlanejamentoRoute: PlanejamentoRoute,
   ProgramasRoute: ProgramasRoute,
