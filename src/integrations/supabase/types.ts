@@ -255,6 +255,56 @@ export type Database = {
           },
         ]
       }
+      performance_records: {
+        Row: {
+          created_at: string
+          data: string
+          id: string
+          nota_artistico: number | null
+          nota_comportamento: number | null
+          nota_tecnico: number | null
+          observacao: string | null
+          pessoa_id: string
+          recognition_tag: string | null
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          data?: string
+          id?: string
+          nota_artistico?: number | null
+          nota_comportamento?: number | null
+          nota_tecnico?: number | null
+          observacao?: string | null
+          pessoa_id: string
+          recognition_tag?: string | null
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          data?: string
+          id?: string
+          nota_artistico?: number | null
+          nota_comportamento?: number | null
+          nota_tecnico?: number | null
+          observacao?: string | null
+          pessoa_id?: string
+          recognition_tag?: string | null
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "performance_records_pessoa_id_fkey"
+            columns: ["pessoa_id"]
+            isOneToOne: false
+            referencedRelation: "pessoas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pessoas: {
         Row: {
           contato_emergencia: string | null
