@@ -39,6 +39,10 @@ const operacional = [
   { title: "Ilhas", url: "/ilhas", icon: LayoutGrid },
 ];
 
+const performance = [
+  { title: "Performance", url: "/performance", icon: TrendingUp },
+];
+
 const gestao = [
   { title: "Visão Geral", url: "/gestao", icon: BarChart3, exact: true },
   { title: "Pessoas", url: "/gestao/pessoas", icon: Users2 },
