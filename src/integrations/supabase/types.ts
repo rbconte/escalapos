@@ -260,6 +260,7 @@ export type Database = {
           created_at: string
           data: string
           id: string
+          impact: Database["public"]["Enums"]["performance_impact"]
           nota_artistico: number | null
           nota_comportamento: number | null
           nota_tecnico: number | null
@@ -273,6 +274,7 @@ export type Database = {
           created_at?: string
           data?: string
           id?: string
+          impact?: Database["public"]["Enums"]["performance_impact"]
           nota_artistico?: number | null
           nota_comportamento?: number | null
           nota_tecnico?: number | null
@@ -286,6 +288,7 @@ export type Database = {
           created_at?: string
           data?: string
           id?: string
+          impact?: Database["public"]["Enums"]["performance_impact"]
           nota_artistico?: number | null
           nota_comportamento?: number | null
           nota_tecnico?: number | null
@@ -497,7 +500,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      performance_impact: "baixo" | "medio" | "alto"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -624,6 +627,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      performance_impact: ["baixo", "medio", "alto"],
+    },
   },
 } as const
