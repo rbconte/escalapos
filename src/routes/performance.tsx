@@ -6,8 +6,11 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import {
+  Activity,
+  AlertTriangle,
   Award,
   BarChart3,
+  Download,
   Plus,
   Search,
   Sparkles,
@@ -48,20 +51,30 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { pessoasQuery } from "@/lib/queries";
 import {
   averageByPillar,
+  buildInsights,
+  buildSmartAlerts,
+  confidenceOf,
+  IMPACT_META,
+  IMPACT_WEIGHT,
   performanceRecordsQuery,
   PILLARS,
   RECOGNITION_TAGS,
+  recordScore,
+  teamHealth,
   TIPO_META,
+  TREND_META,
+  trendDirection,
   sentimentOf,
+  type PerformanceImpact,
   type PerformanceRecordComPessoa,
   type PerformanceType,
   type PillarKey,
+  type PersonInsight,
 } from "@/lib/performance";
 
 export const Route = createFileRoute("/performance")({
@@ -71,7 +84,7 @@ export const Route = createFileRoute("/performance")({
       {
         name: "description",
         content:
-          "Registro contínuo de desempenho e reconhecimento da equipe.",
+          "Inteligência de performance: eventos, tendências, alertas e insights da equipe.",
       },
     ],
   }),
@@ -93,7 +106,7 @@ function PerformancePage() {
   return (
     <PageShell
       title="Performance"
-      description="Log contínuo de desempenho, incidentes e reconhecimentos."
+      description="Inteligência contínua de desempenho, incidentes e reconhecimentos."
       icon={<TrendingUp className="h-5 w-5" />}
       actions={
         <Button onClick={() => setOpenDialog(true)} className="gap-2">
@@ -155,12 +168,14 @@ function Dashboard({
   records: PerformanceRecordComPessoa[];
   pessoas: { id: string; nome: string }[];
 }) {
+  const insights = useMemo(() => buildInsights(records, pessoas), [records, pessoas]);
+  const alerts = useMemo(() => buildSmartAlerts(insights), [insights]);
+  const health = useMemo(() => teamHealth(insights), [insights]);
+  const teamTrend = useMemo(() => trendDirection(records), [records]);
   const avgs = useMemo(() => averageByPillar(records), [records]);
 
   const distribution = useMemo(() => {
-    let pos = 0,
-      neu = 0,
-      neg = 0;
+    let pos = 0, neu = 0, neg = 0;
     for (const r of records) {
       const s = sentimentOf(r);
       if (s === "positivo") pos++;
@@ -172,49 +187,79 @@ function Dashboard({
 
   const trend = useMemo(() => buildTrend(records), [records]);
 
-  const perPersonAvg = useMemo(() => {
-    const map = new Map<
-      string,
-      { nome: string; sum: number; count: number }
-    >();
-    for (const r of records) {
-      const vals = PILLARS.map((p) => r[p.key]).filter(
-        (v): v is number => typeof v === "number",
-      );
-      if (!vals.length) continue;
-      const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
-      const nome = r.pessoa?.nome ?? "—";
-      const cur = map.get(r.pessoa_id) ?? { nome, sum: 0, count: 0 };
-      cur.sum += avg;
-      cur.count += 1;
-      map.set(r.pessoa_id, cur);
-    }
-    return Array.from(map.entries())
-      .map(([id, v]) => ({ id, nome: v.nome, avg: v.sum / v.count, count: v.count }))
-      .sort((a, b) => b.avg - a.avg);
-  }, [records]);
+  const withData = insights.filter((i) => i.count > 0);
+  const topPerformers = [...withData]
+    .filter((i) => i.weightedAvg !== null && i.count >= 3)
+    .sort((a, b) => (b.weightedAvg ?? 0) - (a.weightedAvg ?? 0))
+    .slice(0, 5);
 
-  const top = perPersonAvg.slice(0, 5);
+  const needsAttention = [...withData]
+    .filter(
+      (i) =>
+        i.trend.dir === "declining" ||
+        (i.weightedAvg !== null && i.weightedAvg <= 5) ||
+        i.negatives >= 2,
+    )
+    .sort((a, b) => (a.weightedAvg ?? 10) - (b.weightedAvg ?? 10))
+    .slice(0, 5);
 
-  const semRegistros = useMemo(() => {
-    const cutoff = Date.now() - 30 * 86400_000;
-    const withRecent = new Set(
-      records
-        .filter((r) => new Date(r.data).getTime() >= cutoff)
-        .map((r) => r.pessoa_id),
-    );
-    return pessoas.filter((p) => !withRecent.has(p.id));
-  }, [records, pessoas]);
+  const mostImproved = [...withData]
+    .filter((i) => i.trend.dir === "improving" && (i.trend.delta ?? 0) > 0)
+    .sort((a, b) => (b.trend.delta ?? 0) - (a.trend.delta ?? 0))
+    .slice(0, 5);
+
+  const mostRecognized = [...withData]
+    .filter((i) => i.recognitions > 0)
+    .sort((a, b) => b.recognitions - a.recognitions)
+    .slice(0, 5);
+
+  const noRecentFeedback = insights.filter(
+    (i) => i.count === 0 || (i.daysSinceLast !== null && i.daysSinceLast >= 30),
+  );
 
   const recent = records.slice(0, 8);
 
+  const healthChip =
+    health.status === "saudavel"
+      ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+      : health.status === "atencao"
+        ? "bg-amber-500/10 text-amber-600 border-amber-500/20"
+        : "bg-red-500/10 text-red-600 border-red-500/20";
+
   return (
     <div className="grid gap-4">
-      <div className="grid gap-3 sm:grid-cols-3">
+      {/* Team Health overview */}
+      <div className="grid gap-3 lg:grid-cols-4">
+        <Card className="lg:col-span-2">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground">Saúde do time</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-baseline gap-3">
+              <span className="font-display text-4xl font-bold">
+                {health.avg !== null ? health.avg.toFixed(1) : "—"}
+              </span>
+              <Badge variant="outline" className={healthChip}>
+                {health.status === "saudavel"
+                  ? "Saudável"
+                  : health.status === "atencao"
+                    ? "Atenção"
+                    : "Crítico"}
+              </Badge>
+              <Badge variant="outline" className={TREND_META[teamTrend.dir].chip}>
+                {TREND_META[teamTrend.dir].arrow} {TREND_META[teamTrend.dir].label}
+              </Badge>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {health.improving} em evolução · {health.stable} estáveis ·{" "}
+              {health.declining} em queda
+            </p>
+          </CardContent>
+        </Card>
         {avgs.map((a) => (
           <Card key={a.key}>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+              <CardTitle className="text-sm text-muted-foreground">
                 Média {a.label}
               </CardTitle>
             </CardHeader>
@@ -226,15 +271,114 @@ function Dashboard({
                 >
                   {a.avg !== null ? a.avg.toFixed(1) : "—"}
                 </span>
-                <span className="text-xs text-muted-foreground">
-                  / 10 · {a.count} {a.count === 1 ? "registro" : "registros"}
-                </span>
+                <Badge variant="outline" className={confidenceOf(a.count).chip}>
+                  {confidenceOf(a.count).label}
+                </Badge>
               </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {a.count} {a.count === 1 ? "registro" : "registros"}
+              </p>
             </CardContent>
           </Card>
         ))}
       </div>
 
+      {/* Smart alerts */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            Alertas inteligentes
+            <span className="ml-auto text-xs text-muted-foreground">
+              {alerts.length} sinal{alerts.length === 1 ? "" : "s"}
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {alerts.length === 0 ? (
+            <EmptyMini text="Nenhum sinal preocupante. 👍" />
+          ) : (
+            <ul className="grid gap-2 md:grid-cols-2">
+              {alerts.slice(0, 6).map((a) => {
+                const chip =
+                  a.severity === "critical"
+                    ? "border-red-500/40 bg-red-500/5"
+                    : a.severity === "warn"
+                      ? "border-amber-500/40 bg-amber-500/5"
+                      : "border-sky-500/40 bg-sky-500/5";
+                return (
+                  <li
+                    key={a.id}
+                    className={`rounded-md border p-3 text-sm ${chip}`}
+                  >
+                    <p className="font-medium">{a.title}</p>
+                    <p className="text-xs text-muted-foreground">{a.description}</p>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Management insights */}
+      <div className="grid gap-3 lg:grid-cols-3">
+        <InsightList
+          title="Precisa de atenção"
+          icon={<AlertTriangle className="h-4 w-4 text-red-600" />}
+          items={needsAttention}
+          empty="Ninguém no radar agora."
+          metric={(i) =>
+            `${i.weightedAvg !== null ? i.weightedAvg.toFixed(1) : "—"} · ${TREND_META[i.trend.dir].arrow}`
+          }
+        />
+        <InsightList
+          title="Maior evolução"
+          icon={<Activity className="h-4 w-4 text-emerald-600" />}
+          items={mostImproved}
+          empty="Sem evoluções destacadas."
+          metric={(i) =>
+            `+${(i.trend.delta ?? 0).toFixed(1)} (${i.trend.previous?.toFixed(1)}→${i.trend.recent?.toFixed(1)})`
+          }
+        />
+        <InsightList
+          title="Top performers"
+          icon={<TrendingUp className="h-4 w-4 text-primary" />}
+          items={topPerformers}
+          empty="Sem dados suficientes."
+          metric={(i) => `${i.weightedAvg?.toFixed(1)} · ${i.count} eventos`}
+        />
+        <InsightList
+          title="Mais reconhecidos"
+          icon={<Award className="h-4 w-4 text-amber-600" />}
+          items={mostRecognized}
+          empty="Nenhum reconhecimento ainda."
+          metric={(i) => `${i.recognitions} ⭐`}
+        />
+        <InsightList
+          title="Sem feedback recente"
+          icon={<Users className="h-4 w-4 text-slate-500" />}
+          items={noRecentFeedback.slice(0, 5)}
+          empty="Todos foram observados recentemente."
+          metric={(i) =>
+            i.count === 0
+              ? "sem registros"
+              : `${i.daysSinceLast}d atrás`
+          }
+        />
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Distribuição de eventos</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <DistRow label="Positivos" value={distribution.pos} total={records.length} color="bg-emerald-500" />
+            <DistRow label="Neutros" value={distribution.neu} total={records.length} color="bg-muted-foreground" />
+            <DistRow label="Negativos" value={distribution.neg} total={records.length} color="bg-red-500" />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Trend chart + activity */}
       <div className="grid gap-3 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader className="pb-2">
@@ -271,91 +415,6 @@ function Dashboard({
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Distribuição de eventos</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <DistRow
-              label="Positivos"
-              value={distribution.pos}
-              total={records.length}
-              color="bg-success"
-            />
-            <DistRow
-              label="Neutros"
-              value={distribution.neu}
-              total={records.length}
-              color="bg-muted-foreground"
-            />
-            <DistRow
-              label="Negativos"
-              value={distribution.neg}
-              total={records.length}
-              color="bg-destructive"
-            />
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-3 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Top performers</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {top.length === 0 ? (
-              <EmptyMini text="Nenhum registro com notas ainda." />
-            ) : (
-              <ul className="space-y-2">
-                {top.map((p, i) => (
-                  <li
-                    key={p.id}
-                    className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
-                  >
-                    <span className="flex items-center gap-2">
-                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                        {i + 1}
-                      </span>
-                      {p.nome}
-                    </span>
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {p.avg.toFixed(1)} · {p.count}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">
-              Sem registros nos últimos 30 dias
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {semRegistros.length === 0 ? (
-              <EmptyMini text="Todos os colaboradores foram observados." />
-            ) : (
-              <ul className="space-y-1.5 text-sm">
-                {semRegistros.slice(0, 8).map((p) => (
-                  <li key={p.id} className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                    {p.nome}
-                  </li>
-                ))}
-                {semRegistros.length > 8 && (
-                  <li className="pt-1 text-xs text-muted-foreground">
-                    +{semRegistros.length - 8} outros
-                  </li>
-                )}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
             <CardTitle className="text-sm">Atividade recente</CardTitle>
           </CardHeader>
           <CardContent>
@@ -365,16 +424,11 @@ function Dashboard({
               <ul className="space-y-2 text-sm">
                 {recent.map((r) => (
                   <li key={r.id} className="flex items-start gap-2">
-                    <Badge
-                      variant="outline"
-                      className={TIPO_META[r.tipo].chip + " shrink-0"}
-                    >
+                    <Badge variant="outline" className={TIPO_META[r.tipo].chip + " shrink-0"}>
                       {TIPO_META[r.tipo].label}
                     </Badge>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">
-                        {r.pessoa?.nome ?? "—"}
-                      </p>
+                      <p className="truncate font-medium">{r.pessoa?.nome ?? "—"}</p>
                       <p className="truncate text-xs text-muted-foreground">
                         {formatDate(r.data)}
                         {r.observacao ? ` · ${r.observacao}` : ""}
@@ -388,6 +442,50 @@ function Dashboard({
         </Card>
       </div>
     </div>
+  );
+}
+
+function InsightList({
+  title,
+  icon,
+  items,
+  empty,
+  metric,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  items: PersonInsight[];
+  empty: string;
+  metric: (i: PersonInsight) => string;
+}) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          {icon}
+          {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {items.length === 0 ? (
+          <EmptyMini text={empty} />
+        ) : (
+          <ul className="space-y-1.5 text-sm">
+            {items.map((i) => (
+              <li
+                key={i.pessoaId}
+                className="flex items-center justify-between rounded-md border px-3 py-1.5"
+              >
+                <span className="truncate">{i.nome}</span>
+                <span className="ml-2 font-mono text-xs text-muted-foreground">
+                  {metric(i)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -498,6 +596,9 @@ function RecordsTab({ records }: { records: PerformanceRecordComPessoa[] }) {
                 <Badge variant="outline" className={TIPO_META[r.tipo].chip}>
                   {TIPO_META[r.tipo].label}
                 </Badge>
+                <Badge variant="outline" className={IMPACT_META[r.impact ?? "medio"].chip}>
+                  {IMPACT_META[r.impact ?? "medio"].label}
+                </Badge>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <p className="font-medium">{r.pessoa?.nome ?? "—"}</p>
@@ -511,9 +612,7 @@ function RecordsTab({ records }: { records: PerformanceRecordComPessoa[] }) {
                     </p>
                   )}
                   {r.observacao && (
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {r.observacao}
-                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">{r.observacao}</p>
                   )}
                   <div className="mt-1.5 flex gap-3 text-xs text-muted-foreground">
                     {PILLARS.map((p) =>
@@ -554,8 +653,7 @@ function PeopleTab({
 }) {
   const [selectedId, setSelectedId] = useState<string>(pessoas[0]?.id ?? "");
   const list = useMemo(
-    () =>
-      [...pessoas].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")),
+    () => [...pessoas].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")),
     [pessoas],
   );
 
@@ -566,11 +664,20 @@ function PeopleTab({
 
   const avgs = useMemo(() => averageByPillar(personRecords), [personRecords]);
   const trend = useMemo(() => buildTrend(personRecords), [personRecords]);
+  const overallTrend = useMemo(() => trendDirection(personRecords), [personRecords]);
+  const conf = confidenceOf(personRecords.length);
+
+  const perPillarTrend = useMemo(() => {
+    return PILLARS.map((p) => {
+      const subset = personRecords
+        .filter((r) => typeof r[p.key] === "number")
+        .map((r) => ({ ...r, nota_tecnico: null, nota_comportamento: null, nota_artistico: null, [p.key]: r[p.key] }));
+      return { ...p, trend: trendDirection(subset as PerformanceRecordComPessoa[]) };
+    });
+  }, [personRecords]);
 
   const sentiment = useMemo(() => {
-    let pos = 0,
-      neu = 0,
-      neg = 0;
+    let pos = 0, neu = 0, neg = 0;
     for (const r of personRecords) {
       const s = sentimentOf(r);
       if (s === "positivo") pos++;
@@ -582,6 +689,25 @@ function PeopleTab({
 
   const recognitions = personRecords.filter((r) => r.tipo === "reconhecimento");
   const selected = pessoas.find((p) => p.id === selectedId);
+
+  const autoInsights = useMemo(() => {
+    const items: string[] = [];
+    if (personRecords.length === 0) items.push("Nenhum registro ainda — comece a observar.");
+    if (overallTrend.dir === "improving")
+      items.push(`Desempenho em evolução (+${overallTrend.delta?.toFixed(1)} entre metades).`);
+    if (overallTrend.dir === "declining")
+      items.push(`Desempenho em queda (${overallTrend.delta?.toFixed(1)}). Considere um 1:1.`);
+    if (recognitions.length >= 3)
+      items.push(`${recognitions.length} reconhecimentos acumulados.`);
+    if (sentiment.neg >= 3 && sentiment.neg > sentiment.pos)
+      items.push(`Predomínio de eventos negativos (${sentiment.neg}).`);
+    const last = personRecords[0];
+    if (last) {
+      const days = Math.floor((Date.now() - new Date(last.data).getTime()) / 86400_000);
+      if (days >= 30) items.push(`Último registro há ${days} dias.`);
+    }
+    return items;
+  }, [personRecords, overallTrend, recognitions.length, sentiment]);
 
   return (
     <div className="grid gap-4 lg:grid-cols-[260px_1fr]">
@@ -620,36 +746,62 @@ function PeopleTab({
           <>
             <Card>
               <CardHeader>
-                <CardTitle>{selected.nome}</CardTitle>
+                <div className="flex flex-wrap items-center gap-2">
+                  <CardTitle>{selected.nome}</CardTitle>
+                  <Badge variant="outline" className={conf.chip}>{conf.label}</Badge>
+                  <Badge variant="outline" className={TREND_META[overallTrend.dir].chip}>
+                    {TREND_META[overallTrend.dir].arrow} {TREND_META[overallTrend.dir].label}
+                  </Badge>
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  {personRecords.length} registro
-                  {personRecords.length === 1 ? "" : "s"} ·{" "}
-                  <span className="text-success">{sentiment.pos} positivos</span>
-                  {" · "}
-                  <span>{sentiment.neu} neutros</span>
-                  {" · "}
-                  <span className="text-destructive">
-                    {sentiment.neg} negativos
-                  </span>
+                  {personRecords.length} registro{personRecords.length === 1 ? "" : "s"} ·{" "}
+                  <span className="text-emerald-600">{sentiment.pos} positivos</span>
+                  {" · "}<span>{sentiment.neu} neutros</span>{" · "}
+                  <span className="text-red-600">{sentiment.neg} negativos</span>
                 </p>
               </CardHeader>
               <CardContent className="grid gap-3 sm:grid-cols-3">
-                {avgs.map((a) => (
-                  <div key={a.key} className="rounded-lg border p-3">
-                    <p className="text-xs text-muted-foreground">{a.label}</p>
-                    <p
-                      className="font-display text-2xl font-bold"
-                      style={{ color: a.color }}
-                    >
-                      {a.avg !== null ? a.avg.toFixed(1) : "—"}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {a.count} registros
-                    </p>
-                  </div>
-                ))}
+                {perPillarTrend.map((a) => {
+                  const avg = avgs.find((x) => x.key === a.key);
+                  return (
+                    <div key={a.key} className="rounded-lg border p-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground">{a.label}</p>
+                        <Badge variant="outline" className={TREND_META[a.trend.dir].chip + " text-[10px]"}>
+                          {TREND_META[a.trend.dir].arrow}
+                        </Badge>
+                      </div>
+                      <p className="font-display text-2xl font-bold" style={{ color: a.color }}>
+                        {avg?.avg !== null && avg?.avg !== undefined ? avg.avg.toFixed(1) : "—"}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {avg?.count ?? 0} registros
+                      </p>
+                    </div>
+                  );
+                })}
               </CardContent>
             </Card>
+
+            {autoInsights.length > 0 && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-sm">
+                    <Sparkles className="h-4 w-4 text-primary" /> Insights automáticos
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-1.5 text-sm">
+                    {autoInsights.map((t, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                        {t}
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
 
             <Card>
               <CardHeader className="pb-2">
@@ -698,15 +850,12 @@ function PeopleTab({
                         key={r.id}
                         className="flex items-start gap-2 rounded-md border px-3 py-2 text-sm"
                       >
-                        <Badge
-                          variant="outline"
-                          className={TIPO_META[r.tipo].chip}
-                        >
+                        <Badge variant="outline" className={TIPO_META[r.tipo].chip}>
                           {TIPO_META[r.tipo].label}
                         </Badge>
                         <div className="min-w-0 flex-1">
                           <p className="text-xs text-muted-foreground">
-                            {formatDate(r.data)}
+                            {formatDate(r.data)} · {IMPACT_META[r.impact ?? "medio"].label}
                           </p>
                           {r.recognition_tag && (
                             <p className="text-xs font-medium text-amber-600">
@@ -761,11 +910,7 @@ function PeopleTab({
 
 /* -------------------- Recognition tab -------------------- */
 
-function RecognitionTab({
-  records,
-}: {
-  records: PerformanceRecordComPessoa[];
-}) {
+function RecognitionTab({ records }: { records: PerformanceRecordComPessoa[] }) {
   const recs = records.filter((r) => r.tipo === "reconhecimento");
   const byTag = useMemo(() => {
     const map = new Map<string, number>();
@@ -793,9 +938,7 @@ function RecognitionTab({
                   className="flex items-center justify-between rounded-md border px-3 py-1.5 text-sm"
                 >
                   <span>{tag}</span>
-                  <span className="font-mono text-xs text-muted-foreground">
-                    {count}
-                  </span>
+                  <span className="font-mono text-xs text-muted-foreground">{count}</span>
                 </li>
               ))}
             </ul>
@@ -813,10 +956,7 @@ function RecognitionTab({
           ) : (
             <ul className="grid gap-2 sm:grid-cols-2">
               {recs.map((r) => (
-                <li
-                  key={r.id}
-                  className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3"
-                >
+                <li key={r.id} className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
                   <div className="flex items-center gap-2">
                     <Award className="h-4 w-4 text-amber-600" />
                     <p className="font-medium">{r.pessoa?.nome ?? "—"}</p>
@@ -824,12 +964,8 @@ function RecognitionTab({
                   <p className="mt-1 text-xs font-medium text-amber-700">
                     {r.recognition_tag ?? "Reconhecimento"}
                   </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {formatDate(r.data)}
-                  </p>
-                  {r.observacao && (
-                    <p className="mt-1 text-sm">{r.observacao}</p>
-                  )}
+                  <p className="mt-1 text-xs text-muted-foreground">{formatDate(r.data)}</p>
+                  {r.observacao && <p className="mt-1 text-sm">{r.observacao}</p>}
                 </li>
               ))}
             </ul>
@@ -849,18 +985,45 @@ function ReportsTab({
   records: PerformanceRecordComPessoa[];
   pessoas: { id: string; nome: string }[];
 }) {
-  const rows = useMemo(() => {
+  const today = new Date();
+  const defaultStart = new Date(today.getTime() - 90 * 86400_000)
+    .toISOString()
+    .slice(0, 10);
+  const [inicio, setInicio] = useState(defaultStart);
+  const [fim, setFim] = useState(today.toISOString().slice(0, 10));
+  const [pessoaId, setPessoaId] = useState<string>("");
+
+  const inRange = (iso: string, a: string, b: string) => iso >= a && iso <= b;
+
+  const periodRecords = useMemo(
+    () => records.filter((r) => inRange(r.data, inicio, fim)),
+    [records, inicio, fim],
+  );
+
+  // Period comparison: same window length immediately before.
+  const days =
+    (new Date(fim).getTime() - new Date(inicio).getTime()) / 86400_000 + 1;
+  const prevFim = new Date(new Date(inicio).getTime() - 86400_000)
+    .toISOString()
+    .slice(0, 10);
+  const prevInicio = new Date(new Date(prevFim).getTime() - (days - 1) * 86400_000)
+    .toISOString()
+    .slice(0, 10);
+  const prevRecords = records.filter((r) => inRange(r.data, prevInicio, prevFim));
+
+  const teamRows = useMemo(() => {
     return pessoas
       .map((p) => {
-        const rs = records.filter((r) => r.pessoa_id === p.id);
+        const rs = periodRecords.filter((r) => r.pessoa_id === p.id);
         const avgs = averageByPillar(rs);
-        let pos = 0,
-          neg = 0;
+        let pos = 0, neg = 0;
         for (const r of rs) {
           const s = sentimentOf(r);
           if (s === "positivo") pos++;
           else if (s === "negativo") neg++;
         }
+        const conf = confidenceOf(rs.length);
+        const t = trendDirection(rs);
         return {
           id: p.id,
           nome: p.nome,
@@ -870,61 +1033,260 @@ function ReportsTab({
           artistico: avgs[0].avg,
           tecnico: avgs[1].avg,
           comportamento: avgs[2].avg,
+          confidence: conf.label,
+          trend: TREND_META[t.dir].label,
         };
       })
       .sort((a, b) => b.total - a.total);
-  }, [records, pessoas]);
+  }, [pessoas, periodRecords]);
+
+  const summaryCurrent = summarize(periodRecords);
+  const summaryPrev = summarize(prevRecords);
+
+  const individual = pessoaId
+    ? periodRecords.filter((r) => r.pessoa_id === pessoaId)
+    : [];
+  const individualAvgs = averageByPillar(individual);
+  const individualTrend = trendDirection(individual);
+
+  const exportCsv = () => {
+    const header = [
+      "Colaborador",
+      "Registros",
+      "Positivos",
+      "Negativos",
+      "Artistico",
+      "Tecnico",
+      "Comportamento",
+      "Confianca",
+      "Tendencia",
+    ];
+    const rows = teamRows.map((r) => [
+      r.nome,
+      r.total,
+      r.pos,
+      r.neg,
+      r.artistico ?? "",
+      r.tecnico ?? "",
+      r.comportamento ?? "",
+      r.confidence,
+      r.trend,
+    ]);
+    const csv = [header, ...rows]
+      .map((r) =>
+        r
+          .map((v) => {
+            const s = String(v ?? "");
+            return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+          })
+          .join(";"),
+      )
+      .join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `performance_${inicio}_a_${fim}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportIndividualTxt = () => {
+    if (!pessoaId) return;
+    const p = pessoas.find((x) => x.id === pessoaId);
+    if (!p) return;
+    const lines = [
+      `Resumo individual — ${p.nome}`,
+      `Período: ${inicio} a ${fim}`,
+      `Registros: ${individual.length}`,
+      `Tendência: ${TREND_META[individualTrend.dir].label}`,
+      "",
+      "Médias por pilar:",
+      ...individualAvgs.map(
+        (a) => `- ${a.label}: ${a.avg !== null ? a.avg.toFixed(1) : "—"} (${a.count})`,
+      ),
+      "",
+      "Eventos:",
+      ...individual.map(
+        (r) =>
+          `- ${formatDate(r.data)} · ${TIPO_META[r.tipo].label} · ${IMPACT_META[r.impact ?? "medio"].label}${
+            r.observacao ? ` — ${r.observacao}` : ""
+          }`,
+      ),
+    ];
+    const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `resumo_${p.nome.replace(/\s+/g, "_")}_${inicio}_a_${fim}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-sm">
-          Consolidado por colaborador
-        </CardTitle>
-        <p className="text-xs text-muted-foreground">
-          Apenas eventos registrados são considerados. Dias sem registro não
-          contam como zero.
-        </p>
-      </CardHeader>
-      <CardContent className="overflow-x-auto p-0">
-        <table className="w-full text-sm">
-          <thead className="border-b bg-muted/50 text-left text-xs uppercase text-muted-foreground">
-            <tr>
-              <th className="px-4 py-2">Colaborador</th>
-              <th className="px-3 py-2 text-right">Registros</th>
-              <th className="px-3 py-2 text-right">Positivos</th>
-              <th className="px-3 py-2 text-right">Negativos</th>
-              <th className="px-3 py-2 text-right">Artístico</th>
-              <th className="px-3 py-2 text-right">Técnico</th>
-              <th className="px-3 py-2 text-right">Comportamento</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-b last:border-0">
-                <td className="px-4 py-2 font-medium">{r.nome}</td>
-                <td className="px-3 py-2 text-right font-mono">{r.total}</td>
-                <td className="px-3 py-2 text-right font-mono text-success">
-                  {r.pos}
-                </td>
-                <td className="px-3 py-2 text-right font-mono text-destructive">
-                  {r.neg}
-                </td>
-                <td className="px-3 py-2 text-right font-mono">
-                  {r.artistico !== null ? r.artistico.toFixed(1) : "—"}
-                </td>
-                <td className="px-3 py-2 text-right font-mono">
-                  {r.tecnico !== null ? r.tecnico.toFixed(1) : "—"}
-                </td>
-                <td className="px-3 py-2 text-right font-mono">
-                  {r.comportamento !== null
-                    ? r.comportamento.toFixed(1)
-                    : "—"}
-                </td>
+    <div className="grid gap-4">
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Período</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-end gap-3">
+          <div>
+            <Label className="text-xs">Início</Label>
+            <Input type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} />
+          </div>
+          <div>
+            <Label className="text-xs">Fim</Label>
+            <Input type="date" value={fim} onChange={(e) => setFim(e.target.value)} />
+          </div>
+          <div className="min-w-[200px]">
+            <Label className="text-xs">Colaborador (resumo individual)</Label>
+            <Select value={pessoaId || NONE} onValueChange={(v) => setPessoaId(v === NONE ? "" : v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione…" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>—</SelectItem>
+                {pessoas.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="ml-auto flex gap-2">
+            <Button variant="outline" onClick={exportCsv} className="gap-2">
+              <Download className="h-4 w-4" /> Exportar CSV
+            </Button>
+            <Button
+              variant="outline"
+              onClick={exportIndividualTxt}
+              disabled={!pessoaId}
+              className="gap-2"
+            >
+              <Download className="h-4 w-4" /> Resumo individual
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <ComparisonCard label="Total de eventos" cur={summaryCurrent.total} prev={summaryPrev.total} />
+        <ComparisonCard label="Positivos" cur={summaryCurrent.pos} prev={summaryPrev.pos} />
+        <ComparisonCard label="Negativos" cur={summaryCurrent.neg} prev={summaryPrev.neg} inverted />
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Resumo por colaborador</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Apenas eventos registrados no período. Dias sem registro e pilares sem nota não contam como zero.
+          </p>
+        </CardHeader>
+        <CardContent className="overflow-x-auto p-0">
+          <table className="w-full text-sm">
+            <thead className="border-b bg-muted/50 text-left text-xs uppercase text-muted-foreground">
+              <tr>
+                <th className="px-4 py-2">Colaborador</th>
+                <th className="px-3 py-2 text-right">Reg.</th>
+                <th className="px-3 py-2 text-right">+</th>
+                <th className="px-3 py-2 text-right">−</th>
+                <th className="px-3 py-2 text-right">Artístico</th>
+                <th className="px-3 py-2 text-right">Técnico</th>
+                <th className="px-3 py-2 text-right">Comport.</th>
+                <th className="px-3 py-2">Confiança</th>
+                <th className="px-3 py-2">Tendência</th>
               </tr>
+            </thead>
+            <tbody>
+              {teamRows.map((r) => (
+                <tr key={r.id} className="border-b last:border-0">
+                  <td className="px-4 py-2 font-medium">{r.nome}</td>
+                  <td className="px-3 py-2 text-right font-mono">{r.total}</td>
+                  <td className="px-3 py-2 text-right font-mono text-emerald-600">{r.pos}</td>
+                  <td className="px-3 py-2 text-right font-mono text-red-600">{r.neg}</td>
+                  <td className="px-3 py-2 text-right font-mono">
+                    {r.artistico !== null ? r.artistico.toFixed(1) : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono">
+                    {r.tecnico !== null ? r.tecnico.toFixed(1) : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono">
+                    {r.comportamento !== null ? r.comportamento.toFixed(1) : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-xs">{r.confidence}</td>
+                  <td className="px-3 py-2 text-xs">{r.trend}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+
+      {pessoaId && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">
+              Resumo individual — {pessoas.find((p) => p.id === pessoaId)?.nome}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-3">
+            {individualAvgs.map((a) => (
+              <div key={a.key} className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">{a.label}</p>
+                <p className="font-display text-2xl font-bold" style={{ color: a.color }}>
+                  {a.avg !== null ? a.avg.toFixed(1) : "—"}
+                </p>
+                <p className="text-[11px] text-muted-foreground">{a.count} registros</p>
+              </div>
             ))}
-          </tbody>
-        </table>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function summarize(rs: PerformanceRecordComPessoa[]) {
+  let pos = 0, neg = 0;
+  for (const r of rs) {
+    const s = sentimentOf(r);
+    if (s === "positivo") pos++;
+    else if (s === "negativo") neg++;
+  }
+  return { total: rs.length, pos, neg };
+}
+
+function ComparisonCard({
+  label,
+  cur,
+  prev,
+  inverted = false,
+}: {
+  label: string;
+  cur: number;
+  prev: number;
+  inverted?: boolean;
+}) {
+  const delta = cur - prev;
+  const positive = inverted ? delta < 0 : delta > 0;
+  const negative = inverted ? delta > 0 : delta < 0;
+  const chip = positive
+    ? "text-emerald-600"
+    : negative
+      ? "text-red-600"
+      : "text-muted-foreground";
+  const arrow = delta > 0 ? "↑" : delta < 0 ? "↓" : "→";
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-xs text-muted-foreground">{label}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-baseline gap-2">
+          <span className="font-display text-2xl font-bold">{cur}</span>
+          <span className={`text-xs ${chip}`}>
+            {arrow} {Math.abs(delta)} vs. período anterior ({prev})
+          </span>
+        </div>
       </CardContent>
     </Card>
   );
@@ -946,6 +1308,7 @@ function RecordDialog({
   const [pessoaId, setPessoaId] = useState<string>("");
   const [data, setData] = useState(today);
   const [tipo, setTipo] = useState<PerformanceType>("performance");
+  const [impact, setImpact] = useState<PerformanceImpact>("medio");
   const [notas, setNotas] = useState<Record<PillarKey, string>>({
     nota_artistico: "",
     nota_tecnico: "",
@@ -958,6 +1321,7 @@ function RecordDialog({
     setPessoaId("");
     setData(today);
     setTipo("performance");
+    setImpact("medio");
     setNotas({ nota_artistico: "", nota_tecnico: "", nota_comportamento: "" });
     setTag("");
     setObs("");
@@ -977,15 +1341,20 @@ function RecordDialog({
         pessoa_id: pessoaId,
         data,
         tipo,
+        impact,
         nota_artistico: parseNota(notas.nota_artistico),
         nota_tecnico: parseNota(notas.nota_tecnico),
         nota_comportamento: parseNota(notas.nota_comportamento),
         recognition_tag: tipo === "reconhecimento" ? tag || null : null,
         observacao: obs.trim() || null,
       };
-      const { error } = await (supabase as unknown as {
-        from: (t: string) => { insert: (p: unknown) => Promise<{ error: Error | null }> };
-      })
+      const { error } = await (
+        supabase as unknown as {
+          from: (t: string) => {
+            insert: (p: unknown) => Promise<{ error: Error | null }>;
+          };
+        }
+      )
         .from("performance_records")
         .insert(payload);
       if (error) throw error;
@@ -1032,21 +1401,36 @@ function RecordDialog({
             </div>
           </div>
 
-          <div>
-            <Label>Tipo</Label>
-            <Select
-              value={tipo}
-              onValueChange={(v) => setTipo(v as PerformanceType)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="performance">Performance</SelectItem>
-                <SelectItem value="incidente">Incidente</SelectItem>
-                <SelectItem value="reconhecimento">Reconhecimento</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Tipo</Label>
+              <Select value={tipo} onValueChange={(v) => setTipo(v as PerformanceType)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="performance">Performance</SelectItem>
+                  <SelectItem value="incidente">Incidente</SelectItem>
+                  <SelectItem value="reconhecimento">Reconhecimento</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Impacto</Label>
+              <Select value={impact} onValueChange={(v) => setImpact(v as PerformanceImpact)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="baixo">Baixo (1x)</SelectItem>
+                  <SelectItem value="medio">Médio (1.5x)</SelectItem>
+                  <SelectItem value="alto">Alto (2x)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Peso {IMPACT_WEIGHT[impact]}x nas médias.
+              </p>
+            </div>
           </div>
 
           {tipo === "reconhecimento" && (
@@ -1058,9 +1442,7 @@ function RecordDialog({
                 </SelectTrigger>
                 <SelectContent>
                   {RECOGNITION_TAGS.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1068,7 +1450,9 @@ function RecordDialog({
           )}
 
           <div>
-            <Label className="mb-1 block">Notas por pilar (opcional, 0–10)</Label>
+            <Label className="mb-1 block">
+              Notas por pilar (opcional, 0–10 — deixe em branco se não avaliar)
+            </Label>
             <div className="grid grid-cols-3 gap-2">
               {PILLARS.map((p) => (
                 <div key={p.key}>
@@ -1126,13 +1510,17 @@ function formatDate(iso: string) {
   });
 }
 
-function buildTrend(records: { data: string; nota_artistico: number | null; nota_tecnico: number | null; nota_comportamento: number | null }[]) {
-  const buckets = new Map<
-    string,
-    Record<PillarKey, { sum: number; count: number }>
-  >();
+function buildTrend(
+  records: {
+    data: string;
+    nota_artistico: number | null;
+    nota_tecnico: number | null;
+    nota_comportamento: number | null;
+  }[],
+) {
+  const buckets = new Map<string, Record<PillarKey, { sum: number; count: number }>>();
   for (const r of records) {
-    const key = r.data.slice(0, 7); // YYYY-MM
+    const key = r.data.slice(0, 7);
     let b = buckets.get(key);
     if (!b) {
       b = {
@@ -1160,15 +1548,14 @@ function buildTrend(records: { data: string; nota_artistico: number | null; nota
       });
       return {
         mes: label,
-        nota_artistico: b.nota_artistico.count
-          ? b.nota_artistico.sum / b.nota_artistico.count
-          : null,
-        nota_tecnico: b.nota_tecnico.count
-          ? b.nota_tecnico.sum / b.nota_tecnico.count
-          : null,
+        nota_artistico: b.nota_artistico.count ? b.nota_artistico.sum / b.nota_artistico.count : null,
+        nota_tecnico: b.nota_tecnico.count ? b.nota_tecnico.sum / b.nota_tecnico.count : null,
         nota_comportamento: b.nota_comportamento.count
           ? b.nota_comportamento.sum / b.nota_comportamento.count
           : null,
       };
     });
 }
+
+// silence unused imports until wired everywhere
+void recordScore;
