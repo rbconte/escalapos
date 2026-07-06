@@ -6,8 +6,10 @@ import {
   CalendarHeart,
   CalendarRange,
   CalendarSearch,
+  ClipboardList,
   LayoutGrid,
   Layers,
+  Map,
   TrendingUp,
   Tv,
   Users,
@@ -30,6 +32,8 @@ import {
 const operacional = [
   { title: "Escala Operacional", url: "/", icon: CalendarRange, exact: true },
   { title: "Planejamento Macro", url: "/planejamento", icon: CalendarCheck },
+  { title: "Mapa de Ilhas", url: "/mapa-ilhas", icon: Map },
+  { title: "Distribuição de Trabalho", url: "/distribuicao", icon: ClipboardList },
   { title: "Plano de Férias", url: "/ferias", icon: CalendarHeart },
   { title: "Pessoas", url: "/pessoas", icon: Users },
 
