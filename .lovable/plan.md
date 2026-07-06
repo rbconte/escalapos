@@ -1,101 +1,81 @@
-# Refactor do Módulo de Férias — Gestão por Período Aquisitivo
+# Plan — Island Map + Work Distribution
 
-## Objetivo
-Migrar o módulo de férias de "saldo único por colaborador" para "múltiplos períodos aquisitivos por colaborador", cada um com seu próprio ciclo, saldo e status. Preservar UI existente, corrigir sincronização com Escala e Planejamento Macro.
+Two new modules that share data but stay independent. Both follow the existing UI language: `PageShell`, shadcn tables/dialogs, TanStack Query loaders, `AppSidebar` entries, Portuguese labels consistent with the app.
 
----
+## 1. Database (single migration)
 
-## 1. Modelo de dados
+New tables in `public`:
 
-**Nova tabela `ferias_periodos`** (períodos aquisitivos por pessoa):
-- `pessoa_id`, `numero` (1, 2, 3…)
-- `inicio_aquisitivo`, `fim_aquisitivo`, `data_expiracao`
-- `dias_direito` (default 30), `dias_vendidos` (abono já quitado no período)
-- `status` computado (Accruing | Available | Partially Used | Scheduled | Completed | Expiring Soon | Overdue)
-- `origem` (`gerado` | `setup_inicial`) — para preservar setup atual
+- **`ilha_planejamentos`** (Island Map — strategic blocks)
+  - `ilha_id` → `ilhas.id`
+  - `produto` text (name; color derived from a hash or optional `cor` hex)
+  - `cor` text (nullable, chosen from `PROGRAMA_CORES`)
+  - `data_inicio`, `data_fim` (date)
+  - `hora_inicio`, `hora_fim` (time)
+  - `area` text nullable (for the Area filter)
+  - `notas` text nullable
+  - standard id/created_at/updated_at + `set_updated_at` trigger
 
-**Alteração em `ferias`** (agendamentos):
-- Adicionar `periodo_id` (FK → `ferias_periodos.id`) para vincular cada agendamento a um período específico.
-- Manter colunas atuais (`data_inicio`, `data_fim`, `dias_gozo`, `dias_abono`, `tipo_programacao`, `status`, `observacao`, `periodo_aquisitivo_inicio/fim`).
+- **`distribuicao_trabalho`** (Work Distribution — daily assignments)
+  - `data` date
+  - `ilha_id` → `ilhas.id`
+  - `produto` text
+  - `programa_id` → `programas.id` nullable
+  - `retranca` text nullable (Assignment)
+  - `parceiro_conteudo` text nullable
+  - `pessoa_id` → `pessoas.id` nullable (internal professional)
+  - `hora_inicio`, `hora_fim` (time)
+  - `status` text (`Planejado`, `Em Andamento`, `Concluído`, `Cancelado`)
+  - `notas` text nullable
 
-**Função SQL `gerar_periodos_aquisitivos(pessoa_id)`**:
-- Cria períodos desde `data_contratacao` (ou `vacation_control_start`) até hoje + 1 ano.
-- Mapeia `pending_vacation_days` / `overdue_vacation_days` (setup inicial) para o período correspondente.
+Grants: `authenticated` full CRUD, `service_role` all, `anon` SELECT (matches existing tables' open pattern in this project). RLS enabled with permissive "Allow all" policies matching the current project convention (all other tables use a single open policy).
 
-**Trigger** em `ferias` (insert/update/delete) → invalida cache via `updated_at` no `pessoas` e permite refetch coordenado no client.
+## 2. Files
 
-## 2. Lógica de domínio (`src/lib/ferias.ts`)
+**New route files** (auto-registered by TanStack Router):
+- `src/routes/mapa-ilhas.tsx` — Island Map Gantt view + create/edit dialog
+- `src/routes/distribuicao.tsx` — Work Distribution table + dashboard + dialog
 
-Novos tipos e helpers, preservando os atuais:
-- `PeriodoFerias` (com `usados`, `vendidos`, `agendados`, `restantes`, `status`).
-- `calcularPeriodos(pessoa, ferias, hoje)` → array de períodos com métricas.
-- `statusDoPeriodo(p, hoje)` → um dos 7 status.
-- `alertasDoPeriodo(p)` → alertas por período (`overdue`, `expira em 60d`, `expira em 30d`, `sem agendamento`).
-- Manter `calcularSaldo` (soma agregada dos períodos) para compatibilidade.
+**New lib files:**
+- `src/lib/mapa-ilhas.ts` — types, query options, color helpers, overlap detection
+- `src/lib/distribuicao.ts` — types, query options, conflict detection, planning lookup
 
-## 3. UI — `/ferias`
+**Modified:**
+- `src/components/app-sidebar.tsx` — add two entries under "Operacional" (icons: `Map`, `ClipboardList`)
+- `src/integrations/supabase/types.ts` — regenerated after migration
 
-**Dashboard** (substitui cards atuais):
-- Colaboradores em férias hoje
-- Colaboradores com férias vencidas
-- Períodos aquisitivos vencidos
-- Vencendo em 60 dias / em 30 dias
-- Colaboradores sem férias programadas
-- Dias disponíveis / programados / vendidos
-- Mantém "Configuração pendente" (setup inicial)
+## 3. Island Map UI (`/mapa-ilhas`)
 
-**Aba Colaboradores** — nova visão por período:
-- Card/linha expansível por colaborador com lista de períodos:
-  - `2024/2025 • 30 direito • 0 usados • 30 restantes • 🔴 Vencida`
-  - `2025/2026 • 30 direito • 20 agendados • 10 vendidos • 🟡 Agendada`
-  - `2026/2027 • Adquirindo • 18 dias acumulados`
-- Ação "Programar" abre dialog já com dropdown de período.
+- `PageShell` header with title "Mapa de Ilhas" and actions: zoom toggle (Diário / Semanal / Mensal / Personalizado), date navigation, "Novo Planejamento" button.
+- Filters bar: Produto (autocomplete from existing planejamentos), Área, Ilha (multi), intervalo de datas.
+- **Gantt grid**: rows = Ilhas (filtered), columns = days in the selected range. Blocks rendered as absolute-positioned bars spanning `data_inicio → data_fim`, colored by product, with product name inside and tooltip (product, dates, times, notes). Overlapping blocks stack vertically inside the row with a small ⚠ badge.
+- Click a block → edit dialog. Empty cell click → create dialog prefilled with island/date.
+- Dialog fields: Ilha (select), Produto (text + color), Data Início/Fim, Hora Início/Fim, Área, Notas. On save: warn (toast) if overlap exists but never block.
 
-**Dialog Programar Férias**:
-- Novo campo obrigatório: **Período aquisitivo** (dropdown com períodos disponíveis, default = mais antigo com saldo).
-- Validação por período (não pelo total): gozo + abono ≤ restantes do período; abono acumulado do período ≤ 10.
-- Warning (não bloqueia) se houver conflito com `escalas` ou `programa_necessidades`.
+## 4. Work Distribution UI (`/distribuicao`)
 
-**Timeline / Calendário anual**:
-- Cada bloco mostra: dias de gozo, dias vendidos, período (`2025/2026`), status.
+- `PageShell` header: title "Distribuição de Trabalho", date picker (default: today), "Nova Atribuição" button.
+- **Dashboard row** (KPI cards using existing `Card` styling):
+  - Atribuições Ativas, Ilhas Ocupadas, Ilhas Disponíveis, Profissionais Ativos, Conflitos Operacionais, Em Andamento.
+- **View switch** (Tabs): Tabela / Por Ilha / Por Profissional / Por Programa.
+- **Table view**: shadcn Table with columns per spec, sortable headers, search input, filters (Ilha, Status, Programa). Status pill uses colored badge. Row click → edit dialog. Inline quick actions (edit/delete).
+- **Grouped views**: same rows collapsed under group headers.
+- **Dialog** — Nova/Editar Atribuição:
+  - Data, Ilha (select) → on change, look up `ilha_planejamentos` for that date. If a plan exists, show a suggestion banner: "Planejamento: {produto} {hora_inicio}-{hora_fim}" with a "Preencher automaticamente" button (fills Produto/hora fields). User can ignore.
+  - Fields: Produto, Programa (select), Retranca, Parceiro de Conteúdo, Profissional Interno (pessoas select), Hora Início/Fim, Status, Notas.
+  - On save: if selected Produto/horário diverge from plan → toast warning only. Never block.
+- **Conflict detection** for KPI: same pessoa_id with overlapping times on same date, or same ilha with overlapping times.
 
-## 4. Sincronização (correção crítica)
+## 5. Shared behavior
 
-Fonte única = `ferias`. Ao criar/editar/excluir:
-- `queryClient.invalidateQueries` em `["ferias"]`, `["escalas"]`, `["programa_necessidades"]`, `["gestao"]`.
-- Atualizar `src/lib/gestao/metricas.ts` para considerar `data_inicio..data_fim` das férias (apenas dias de gozo, não abono/vendidos) como indisponíveis na cobertura.
-- Escala Operacional e Planejamento Macro passam a consultar `ferias` diretamente para marcar ausência.
+- Both modules use TanStack Query loader pattern (`ensureQueryData` + `useSuspenseQuery`), same as existing `ferias.tsx` / `performance.tsx`.
+- Consistent Portuguese labels, `PageShell`, shadcn components, `PROGRAMA_CORES`, `STATUS_META`-style badges.
+- No changes to existing modules beyond sidebar registration.
 
-## 5. Alertas
+## Technical notes
 
-Alertas gerados por período, não por colaborador:
-- 🔴 Período vencido
-- 🟡 Vence em ≤ 60 dias sem agendamento
-- 🟠 Sem férias agendadas em nenhum período disponível
-Exibidos em badges no dashboard, lista e cadastro.
-
-## 6. Validação (só avisa, não bloqueia)
-
-Ao salvar programação:
-- Conflito com `escalas` do período
-- Conflito com `programa_necessidades` (cobertura)
-- Sobreposição com outra `ferias` do mesmo colaborador
-
-Todos como warnings com "Deseja continuar?".
-
-## 7. Compatibilidade
-
-- Manter API pública de `calcularSaldo` e componentes existentes que a consomem.
-- Setup inicial (`vacation_status`, `pending_vacation_days`, `overdue_vacation_days`) continua funcionando — mapeado para o período correspondente ao gerar.
-- Sem duplicar registros: `ferias_periodos` é gerado sob demanda a partir de `data_contratacao`; `ferias` mantém agendamentos.
-
-## Ordem de execução
-1. Migration: `ferias_periodos` + coluna `periodo_id` em `ferias` + função de geração.
-2. Helpers em `ferias.ts` (novos tipos, `calcularPeriodos`).
-3. Refactor do `/ferias` (dashboard, aba colaboradores, dialog com dropdown de período).
-4. Timeline/calendário com blocos ampliados.
-5. Sync: invalidations + atualização de `metricas.ts`.
-6. Alertas por período.
-
-## Fora do escopo
-- Notificações por e-mail, workflow de aprovação, auditoria, exportação dedicada.
+- Overlap detection: pure client-side on already-fetched rows (small dataset).
+- Planning lookup on assignment: query `ilha_planejamentos` where `ilha_id = ?` AND `data BETWEEN data_inicio AND data_fim`, sorted by hora_inicio.
+- Color per product: if `cor` unset, hash product name → index into `PROGRAMA_CORES`.
+- All timestamps as `date` + `time` (no timezone quirks).
+- RLS: match project convention (single permissive policy per table) — this project has no auth surface for end-users; every other table uses the same open pattern.
