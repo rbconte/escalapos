@@ -14,10 +14,12 @@ import { Route as ProgramasRouteImport } from './routes/programas'
 import { Route as PlanejamentoRouteImport } from './routes/planejamento'
 import { Route as PessoasRouteImport } from './routes/pessoas'
 import { Route as PerformanceRouteImport } from './routes/performance'
+import { Route as MapaIlhasRouteImport } from './routes/mapa-ilhas'
 import { Route as IlhasRouteImport } from './routes/ilhas'
 import { Route as GestaoRouteImport } from './routes/gestao'
 import { Route as FuncoesRouteImport } from './routes/funcoes'
 import { Route as FeriasRouteImport } from './routes/ferias'
+import { Route as DistribuicaoRouteImport } from './routes/distribuicao'
 import { Route as ConteudosRouteImport } from './routes/conteudos'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GestaoIndexRouteImport } from './routes/gestao.index'
@@ -51,6 +53,11 @@ const PerformanceRoute = PerformanceRouteImport.update({
   path: '/performance',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MapaIlhasRoute = MapaIlhasRouteImport.update({
+  id: '/mapa-ilhas',
+  path: '/mapa-ilhas',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IlhasRoute = IlhasRouteImport.update({
   id: '/ilhas',
   path: '/ilhas',
@@ -69,6 +76,11 @@ const FuncoesRoute = FuncoesRouteImport.update({
 const FeriasRoute = FeriasRouteImport.update({
   id: '/ferias',
   path: '/ferias',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DistribuicaoRoute = DistribuicaoRouteImport.update({
+  id: '/distribuicao',
+  path: '/distribuicao',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConteudosRoute = ConteudosRouteImport.update({
@@ -110,10 +122,12 @@ const GestaoConteudosRoute = GestaoConteudosRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/conteudos': typeof ConteudosRoute
+  '/distribuicao': typeof DistribuicaoRoute
   '/ferias': typeof FeriasRoute
   '/funcoes': typeof FuncoesRoute
   '/gestao': typeof GestaoRouteWithChildren
   '/ilhas': typeof IlhasRoute
+  '/mapa-ilhas': typeof MapaIlhasRoute
   '/performance': typeof PerformanceRoute
   '/pessoas': typeof PessoasRoute
   '/planejamento': typeof PlanejamentoRoute
@@ -128,9 +142,11 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/conteudos': typeof ConteudosRoute
+  '/distribuicao': typeof DistribuicaoRoute
   '/ferias': typeof FeriasRoute
   '/funcoes': typeof FuncoesRoute
   '/ilhas': typeof IlhasRoute
+  '/mapa-ilhas': typeof MapaIlhasRoute
   '/performance': typeof PerformanceRoute
   '/pessoas': typeof PessoasRoute
   '/planejamento': typeof PlanejamentoRoute
@@ -146,10 +162,12 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/conteudos': typeof ConteudosRoute
+  '/distribuicao': typeof DistribuicaoRoute
   '/ferias': typeof FeriasRoute
   '/funcoes': typeof FuncoesRoute
   '/gestao': typeof GestaoRouteWithChildren
   '/ilhas': typeof IlhasRoute
+  '/mapa-ilhas': typeof MapaIlhasRoute
   '/performance': typeof PerformanceRoute
   '/pessoas': typeof PessoasRoute
   '/planejamento': typeof PlanejamentoRoute
@@ -166,10 +184,12 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/conteudos'
+    | '/distribuicao'
     | '/ferias'
     | '/funcoes'
     | '/gestao'
     | '/ilhas'
+    | '/mapa-ilhas'
     | '/performance'
     | '/pessoas'
     | '/planejamento'
@@ -184,9 +204,11 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/conteudos'
+    | '/distribuicao'
     | '/ferias'
     | '/funcoes'
     | '/ilhas'
+    | '/mapa-ilhas'
     | '/performance'
     | '/pessoas'
     | '/planejamento'
@@ -201,10 +223,12 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/conteudos'
+    | '/distribuicao'
     | '/ferias'
     | '/funcoes'
     | '/gestao'
     | '/ilhas'
+    | '/mapa-ilhas'
     | '/performance'
     | '/pessoas'
     | '/planejamento'
@@ -220,10 +244,12 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ConteudosRoute: typeof ConteudosRoute
+  DistribuicaoRoute: typeof DistribuicaoRoute
   FeriasRoute: typeof FeriasRoute
   FuncoesRoute: typeof FuncoesRoute
   GestaoRoute: typeof GestaoRouteWithChildren
   IlhasRoute: typeof IlhasRoute
+  MapaIlhasRoute: typeof MapaIlhasRoute
   PerformanceRoute: typeof PerformanceRoute
   PessoasRoute: typeof PessoasRoute
   PlanejamentoRoute: typeof PlanejamentoRoute
@@ -268,6 +294,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PerformanceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/mapa-ilhas': {
+      id: '/mapa-ilhas'
+      path: '/mapa-ilhas'
+      fullPath: '/mapa-ilhas'
+      preLoaderRoute: typeof MapaIlhasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/ilhas': {
       id: '/ilhas'
       path: '/ilhas'
@@ -294,6 +327,13 @@ declare module '@tanstack/react-router' {
       path: '/ferias'
       fullPath: '/ferias'
       preLoaderRoute: typeof FeriasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/distribuicao': {
+      id: '/distribuicao'
+      path: '/distribuicao'
+      fullPath: '/distribuicao'
+      preLoaderRoute: typeof DistribuicaoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/conteudos': {
@@ -370,10 +410,12 @@ const GestaoRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ConteudosRoute: ConteudosRoute,
+  DistribuicaoRoute: DistribuicaoRoute,
   FeriasRoute: FeriasRoute,
   FuncoesRoute: FuncoesRoute,
   GestaoRoute: GestaoRouteWithChildren,
   IlhasRoute: IlhasRoute,
+  MapaIlhasRoute: MapaIlhasRoute,
   PerformanceRoute: PerformanceRoute,
   PessoasRoute: PessoasRoute,
   PlanejamentoRoute: PlanejamentoRoute,
