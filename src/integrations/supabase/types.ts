@@ -14,6 +14,79 @@ export type Database = {
   }
   public: {
     Tables: {
+      distribuicao_trabalho: {
+        Row: {
+          created_at: string
+          data: string
+          hora_fim: string
+          hora_inicio: string
+          id: string
+          ilha_id: string
+          notas: string | null
+          parceiro_conteudo: string | null
+          pessoa_id: string | null
+          produto: string | null
+          programa_id: string | null
+          retranca: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          data?: string
+          hora_fim?: string
+          hora_inicio?: string
+          id?: string
+          ilha_id: string
+          notas?: string | null
+          parceiro_conteudo?: string | null
+          pessoa_id?: string | null
+          produto?: string | null
+          programa_id?: string | null
+          retranca?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          data?: string
+          hora_fim?: string
+          hora_inicio?: string
+          id?: string
+          ilha_id?: string
+          notas?: string | null
+          parceiro_conteudo?: string | null
+          pessoa_id?: string | null
+          produto?: string | null
+          programa_id?: string | null
+          retranca?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "distribuicao_trabalho_ilha_id_fkey"
+            columns: ["ilha_id"]
+            isOneToOne: false
+            referencedRelation: "ilhas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "distribuicao_trabalho_pessoa_id_fkey"
+            columns: ["pessoa_id"]
+            isOneToOne: false
+            referencedRelation: "pessoas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "distribuicao_trabalho_programa_id_fkey"
+            columns: ["programa_id"]
+            isOneToOne: false
+            referencedRelation: "programas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       escalas: {
         Row: {
           created_at: string
@@ -148,6 +221,59 @@ export type Database = {
           nome?: string
         }
         Relationships: []
+      }
+      ilha_planejamentos: {
+        Row: {
+          area: string | null
+          cor: string | null
+          created_at: string
+          data_fim: string
+          data_inicio: string
+          hora_fim: string
+          hora_inicio: string
+          id: string
+          ilha_id: string
+          notas: string | null
+          produto: string
+          updated_at: string
+        }
+        Insert: {
+          area?: string | null
+          cor?: string | null
+          created_at?: string
+          data_fim: string
+          data_inicio: string
+          hora_fim?: string
+          hora_inicio?: string
+          id?: string
+          ilha_id: string
+          notas?: string | null
+          produto: string
+          updated_at?: string
+        }
+        Update: {
+          area?: string | null
+          cor?: string | null
+          created_at?: string
+          data_fim?: string
+          data_inicio?: string
+          hora_fim?: string
+          hora_inicio?: string
+          id?: string
+          ilha_id?: string
+          notas?: string | null
+          produto?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ilha_planejamentos_ilha_id_fkey"
+            columns: ["ilha_id"]
+            isOneToOne: false
+            referencedRelation: "ilhas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ilhas: {
         Row: {
