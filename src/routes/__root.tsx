@@ -95,6 +95,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
+      { name: "twitter:title", content: "Escala Operacional — Gestão de Equipes" },
+      { name: "description", content: "Visualize e planeje a ocupação da equipe em uma timeline contínua, com filtros e modos diário, semanal e mensal." },
+      { property: "og:description", content: "Visualize e planeje a ocupação da equipe em uma timeline contínua, com filtros e modos diário, semanal e mensal." },
+      { name: "twitter:description", content: "Visualize e planeje a ocupação da equipe em uma timeline contínua, com filtros e modos diário, semanal e mensal." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/42f62d78-e188-463c-8797-4d5bdd933b08/id-preview-2e3badaf--9a44168a-4d9d-43bf-8267-3b9d68c71a64.lovable.app-1783346597895.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/42f62d78-e188-463c-8797-4d5bdd933b08/id-preview-2e3badaf--9a44168a-4d9d-43bf-8267-3b9d68c71a64.lovable.app-1783346597895.png" },
     ],
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
