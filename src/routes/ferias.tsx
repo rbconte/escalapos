@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import { supabase } from "@/integrations/supabase/client";
+import { invalidateOperacional } from "@/lib/sync";
+
 import { pessoasQuery, todasFeriasQuery, escalasQuery } from "@/lib/queries";
 import type { PessoaComFuncao } from "@/lib/domain";
 import { TIPO_PROGRAMACAO_FERIAS, TIPO_PROGRAMACAO_LABEL, type TipoProgramacaoFerias } from "@/lib/domain";
@@ -167,14 +169,11 @@ function FeriasPage() {
   }
 
   function handleSaved() {
-    // Fonte única: invalidar todas as caches que dependem de férias
-    qc.invalidateQueries({ queryKey: ["ferias"] });
-    qc.invalidateQueries({ queryKey: ["escalas"] });
-    qc.invalidateQueries({ queryKey: ["programa_necessidades"] });
-    qc.invalidateQueries({ queryKey: ["ocorrencias"] });
-    qc.invalidateQueries({ queryKey: ["pessoas"] });
+    // Fonte única: invalidar todas as views derivadas de dados operacionais
+    invalidateOperacional(qc);
     setProgPessoa(null);
   }
+
 
   return (
     <PageShell

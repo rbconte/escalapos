@@ -70,6 +70,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
+import { excluirDemanda, invalidateOperacional, propagarDemanda } from "@/lib/sync";
+
 import { ilhasQuery, escalasQuery, pessoasQuery } from "@/lib/queries";
 import {
   assignLanes,
@@ -352,6 +354,15 @@ function MapaIlhasPage() {
           .update(payload)
           .eq("id", editing.id);
         if (error) throw error;
+        // Propaga a mesma demanda para Escala e Distribuição de Trabalho.
+        if (editing.demanda_id) {
+          await propagarDemanda(editing.demanda_id, {
+            ilha_id: payload.ilha_id,
+            hora_inicio: payload.hora_inicio,
+            hora_fim: payload.hora_fim,
+            produto: payload.produto,
+          });
+        }
       } else {
         const { error } = await supabase.from("ilha_planejamentos").insert(payload);
         if (error) throw error;
@@ -367,7 +378,7 @@ function MapaIlhasPage() {
       return { overlaps: overlaps.length };
     },
     onSuccess: (res) => {
-      qc.invalidateQueries({ queryKey: ["ilha_planejamentos"] });
+      invalidateOperacional(qc);
       setDialogOpen(false);
       if (res.overlaps > 0) {
         toast.warning(
@@ -382,17 +393,23 @@ function MapaIlhasPage() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
+      const alvo = planejamentos.find((p) => p.id === id);
+      // Remove a demanda inteira — escala e distribuição derivadas incluídas.
+      if (alvo?.demanda_id) {
+        await excluirDemanda(alvo.demanda_id);
+      }
       const { error } = await supabase.from("ilha_planejamentos").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["ilha_planejamentos"] });
+      invalidateOperacional(qc);
       setDialogOpen(false);
       setSelected(null);
-      toast.success("Planejamento removido.");
+      toast.success("Planejamento removido em todos os módulos.");
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
 
   const rangeLabel = useMemo(() => {
     if (zoom === "Diário") return format(anchor, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR });

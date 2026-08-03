@@ -37,6 +37,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { invalidateOperacional, limparProjecoesDeEscalas } from "@/lib/sync";
+
 import { funcoesQuery, pessoasQuery } from "@/lib/queries";
 import { JORNADAS, STATUS_PESSOA, type PessoaComFuncao } from "@/lib/domain";
 
@@ -174,7 +176,7 @@ function PessoasPage() {
       }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["pessoas"] });
+      invalidateOperacional(qc);
       setOpen(false);
       toast.success(editing ? "Colaborador atualizado." : "Colaborador criado.");
     },
@@ -183,17 +185,21 @@ function PessoasPage() {
 
   const remove = useMutation({
     mutationFn: async (id: string) => {
+      // Limpa a demanda derivada antes de excluir o colaborador (sem órfãos).
+      await limparProjecoesDeEscalas((q) => q.eq("pessoa_id", id));
+      const { error: escErr } = await supabase.from("escalas").delete().eq("pessoa_id", id);
+      if (escErr) throw escErr;
       const { error } = await supabase.from("pessoas").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["pessoas"] });
-      qc.invalidateQueries({ queryKey: ["escalas"] });
+      invalidateOperacional(qc);
       setToDelete(null);
       toast.success("Colaborador excluído.");
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
 
   function openNew() {
     setEditing(null);

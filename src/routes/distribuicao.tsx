@@ -46,7 +46,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
-import { ilhasQuery, pessoasQuery, programasQuery } from "@/lib/queries";
+import {
+  ausenciaEm,
+  excluirDemanda,
+  indisponibilidade,
+  invalidateOperacional,
+  propagarDemanda,
+} from "@/lib/sync";
+import {
+  ilhasQuery,
+  licencasQuery,
+  pessoasQuery,
+  programasQuery,
+  todasFeriasQuery,
+} from "@/lib/queries";
+
 import {
   ilhaPlanejamentosQuery,
   planForDate,
@@ -78,6 +92,9 @@ export const Route = createFileRoute("/distribuicao")({
     context.queryClient.ensureQueryData(programasQuery());
     context.queryClient.ensureQueryData(ilhaPlanejamentosQuery());
     context.queryClient.ensureQueryData(distribuicaoQuery());
+    context.queryClient.ensureQueryData(todasFeriasQuery());
+    context.queryClient.ensureQueryData(licencasQuery());
+
   },
   component: DistribuicaoPage,
 });
@@ -121,6 +138,10 @@ function DistribuicaoPage() {
   const { data: programas } = useSuspenseQuery(programasQuery());
   const { data: planejamentos } = useSuspenseQuery(ilhaPlanejamentosQuery());
   const { data: rows } = useSuspenseQuery(distribuicaoQuery());
+  const { data: ferias } = useSuspenseQuery(todasFeriasQuery());
+  const { data: licencas } = useSuspenseQuery(licencasQuery());
+  const ausencias = useMemo(() => indisponibilidade(ferias, licencas), [ferias, licencas]);
+
 
   const [dateFilter, setDateFilter] = useState<string>(ISO(new Date()));
   const [q, setQ] = useState("");
@@ -223,6 +244,15 @@ function DistribuicaoPage() {
   const save = useMutation({
     mutationFn: async () => {
       if (!form.ilha_id) throw new Error("Ilha é obrigatória.");
+      const pessoaId = form.pessoa_id === NONE ? null : form.pessoa_id;
+      if (pessoaId) {
+        const ausencia = ausenciaEm(ausencias, pessoaId, form.data);
+        if (ausencia) {
+          throw new Error(
+            `${pessoaById.get(pessoaId) ?? "Profissional"} está em ${ausencia.tipo} nesta data.`,
+          );
+        }
+      }
       const payload = {
         data: form.data,
         ilha_id: form.ilha_id,
@@ -230,7 +260,7 @@ function DistribuicaoPage() {
         programa_id: form.programa_id === NONE ? null : form.programa_id,
         retranca: form.retranca.trim() || null,
         parceiro_conteudo: form.parceiro_conteudo.trim() || null,
-        pessoa_id: form.pessoa_id === NONE ? null : form.pessoa_id,
+        pessoa_id: pessoaId,
         hora_inicio: form.hora_inicio,
         hora_fim: form.hora_fim,
         status: form.status,
@@ -242,6 +272,17 @@ function DistribuicaoPage() {
           .update(payload)
           .eq("id", editing.id);
         if (error) throw error;
+        // Mantém Escala e Mapa de Ilhas alinhados com a mesma demanda.
+        if (editing.demanda_id) {
+          await propagarDemanda(editing.demanda_id, {
+            ilha_id: payload.ilha_id,
+            pessoa_id: payload.pessoa_id,
+            programa_id: payload.programa_id,
+            hora_inicio: payload.hora_inicio,
+            hora_fim: payload.hora_fim,
+            ...(payload.produto ? { produto: payload.produto } : {}),
+          });
+        }
       } else {
         const { error } = await supabase.from("distribuicao_trabalho").insert(payload);
         if (error) throw error;
@@ -255,7 +296,7 @@ function DistribuicaoPage() {
       return { diverge, hasPlan: plans.length > 0 };
     },
     onSuccess: (res) => {
-      qc.invalidateQueries({ queryKey: ["distribuicao_trabalho"] });
+      invalidateOperacional(qc);
       setDialogOpen(false);
       if (res.diverge) {
         toast.warning(
@@ -270,15 +311,19 @@ function DistribuicaoPage() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
+      const alvo = rows.find((r) => r.id === id);
+      // Remove a demanda inteira (escala + bloco de ilha), sem órfãos.
+      if (alvo?.demanda_id) await excluirDemanda(alvo.demanda_id);
       const { error } = await supabase.from("distribuicao_trabalho").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["distribuicao_trabalho"] });
-      toast.success("Atribuição removida.");
+      invalidateOperacional(qc);
+      toast.success("Atribuição removida em todos os módulos.");
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
 
   const currentPlan =
     form.ilha_id && form.data ? planForDate(planejamentos, form.ilha_id, form.data) : [];

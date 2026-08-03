@@ -9,6 +9,13 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  invalidateOperacional,
+  limparProjecoesDeEscalas,
+  sincronizarEscalas,
+  type EscalaSync,
+} from "@/lib/sync";
+
+import {
   AlertTriangle,
   CalendarRange,
   ChevronLeft,
@@ -135,29 +142,39 @@ function EscalaPage() {
       data: string;
     }) => {
       const { escala, pessoaId, data } = args;
+      await limparProjecoesDeEscalas((q) => q.eq("pessoa_id", pessoaId).eq("data", data));
       const { error: delError } = await supabase
         .from("escalas")
         .delete()
         .eq("pessoa_id", pessoaId)
         .eq("data", data);
       if (delError) throw delError;
-      const { error } = await supabase.from("escalas").insert({
-        pessoa_id: pessoaId,
-        data,
-        programa_id: escala.programa_id,
-        ilha_id: escala.ilha_id,
-        hora_inicio: escala.hora_inicio,
-        hora_fim: escala.hora_fim,
-        modalidade: escala.modalidade,
-        status: escala.status,
-      });
+      const { data: inseridas, error } = await supabase
+        .from("escalas")
+        .insert({
+          pessoa_id: pessoaId,
+          data,
+          programa_id: escala.programa_id,
+          ilha_id: escala.ilha_id,
+          hora_inicio: escala.hora_inicio,
+          hora_fim: escala.hora_fim,
+          modalidade: escala.modalidade,
+          status: escala.status,
+        })
+        .select(
+          "id, demanda_id, pessoa_id, programa_id, ilha_id, data, hora_inicio, hora_fim, status",
+        );
       if (error) throw error;
+      await sincronizarEscalas(
+        (inseridas ?? []) as EscalaSync[],
+        new Map(programas.map((p) => [p.id, p.nome] as const)),
+      );
       const novas = await reprocessarOcorrencias([pessoaId]);
       return { pessoaId, novas };
     },
     onSuccess: ({ pessoaId, novas }) => {
-      qc.invalidateQueries({ queryKey: ["escalas"] });
-      qc.invalidateQueries({ queryKey: ["ocorrencias"] });
+      invalidateOperacional(qc);
+
       const doAlvo = novas.filter((o) => o.pessoa_id === pessoaId);
       if (doAlvo.length > 0) {
         notificarResumoOcorrencias(

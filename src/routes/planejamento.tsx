@@ -43,6 +43,8 @@ import {
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { invalidateOperacional, limparProjecoesDeEscalas } from "@/lib/sync";
+
 import {
   conteudosQuery,
   escalasQuery,
@@ -121,6 +123,9 @@ function PlanejamentoPage() {
       status: string;
     }) => {
       // Replace any existing allocation for that pessoa+data (one entry per cell in macro view).
+      await limparProjecoesDeEscalas((q) =>
+        q.eq("pessoa_id", args.pessoaId).eq("data", args.data),
+      );
       const { error: delErr } = await supabase
         .from("escalas")
         .delete()
@@ -136,10 +141,7 @@ function PlanejamentoPage() {
       });
       if (error) throw error;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["escalas"] });
-      qc.invalidateQueries({ queryKey: ["ocorrencias"] });
-    },
+    onSuccess: () => invalidateOperacional(qc),
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -158,6 +160,9 @@ function PlanejamentoPage() {
         dates.push(ISO(d));
       }
       if (!dates.length) return;
+      await limparProjecoesDeEscalas((q) =>
+        q.eq("pessoa_id", args.pessoaId).in("data", dates),
+      );
       const { error: delErr } = await supabase
         .from("escalas")
         .delete()
@@ -174,15 +179,15 @@ function PlanejamentoPage() {
       const { error } = await supabase.from("escalas").insert(rows);
       if (error) throw error;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["escalas"] });
-      qc.invalidateQueries({ queryKey: ["ocorrencias"] });
-    },
+    onSuccess: () => invalidateOperacional(qc),
     onError: (e: Error) => toast.error(e.message),
   });
 
   const clearCell = useMutation({
     mutationFn: async (args: { pessoaId: string; data: string }) => {
+      await limparProjecoesDeEscalas((q) =>
+        q.eq("pessoa_id", args.pessoaId).eq("data", args.data),
+      );
       const { error } = await supabase
         .from("escalas")
         .delete()
@@ -190,11 +195,9 @@ function PlanejamentoPage() {
         .eq("data", args.data);
       if (error) throw error;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["escalas"] });
-      qc.invalidateQueries({ queryKey: ["ocorrencias"] });
-    },
+    onSuccess: () => invalidateOperacional(qc),
     onError: (e: Error) => toast.error(e.message),
+
   });
 
   // Indexing ------------------------------------------------------------
