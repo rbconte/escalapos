@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           created_at: string
           data: string
+          demanda_id: string | null
           hora_fim: string
           hora_inicio: string
           id: string
@@ -34,6 +35,7 @@ export type Database = {
         Insert: {
           created_at?: string
           data?: string
+          demanda_id?: string | null
           hora_fim?: string
           hora_inicio?: string
           id?: string
@@ -50,6 +52,7 @@ export type Database = {
         Update: {
           created_at?: string
           data?: string
+          demanda_id?: string | null
           hora_fim?: string
           hora_inicio?: string
           id?: string
@@ -91,6 +94,7 @@ export type Database = {
         Row: {
           created_at: string
           data: string
+          demanda_id: string | null
           hora_fim: string | null
           hora_inicio: string | null
           id: string
@@ -103,6 +107,7 @@ export type Database = {
         Insert: {
           created_at?: string
           data: string
+          demanda_id?: string | null
           hora_fim?: string | null
           hora_inicio?: string | null
           id?: string
@@ -115,6 +120,7 @@ export type Database = {
         Update: {
           created_at?: string
           data?: string
+          demanda_id?: string | null
           hora_fim?: string | null
           hora_inicio?: string | null
           id?: string
@@ -229,12 +235,17 @@ export type Database = {
           created_at: string
           data_fim: string
           data_inicio: string
+          demanda_id: string | null
           hora_fim: string
           hora_inicio: string
           id: string
           ilha_id: string
           notas: string | null
+          pessoa_id: string | null
           produto: string
+          programa_id: string | null
+          recursos_necessarios: number
+          status: string
           updated_at: string
         }
         Insert: {
@@ -243,12 +254,17 @@ export type Database = {
           created_at?: string
           data_fim: string
           data_inicio: string
+          demanda_id?: string | null
           hora_fim?: string
           hora_inicio?: string
           id?: string
           ilha_id: string
           notas?: string | null
+          pessoa_id?: string | null
           produto: string
+          programa_id?: string | null
+          recursos_necessarios?: number
+          status?: string
           updated_at?: string
         }
         Update: {
@@ -257,12 +273,17 @@ export type Database = {
           created_at?: string
           data_fim?: string
           data_inicio?: string
+          demanda_id?: string | null
           hora_fim?: string
           hora_inicio?: string
           id?: string
           ilha_id?: string
           notas?: string | null
+          pessoa_id?: string | null
           produto?: string
+          programa_id?: string | null
+          recursos_necessarios?: number
+          status?: string
           updated_at?: string
         }
         Relationships: [
@@ -271,6 +292,20 @@ export type Database = {
             columns: ["ilha_id"]
             isOneToOne: false
             referencedRelation: "ilhas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ilha_planejamentos_pessoa_id_fkey"
+            columns: ["pessoa_id"]
+            isOneToOne: false
+            referencedRelation: "pessoas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ilha_planejamentos_programa_id_fkey"
+            columns: ["programa_id"]
+            isOneToOne: false
+            referencedRelation: "programas"
             referencedColumns: ["id"]
           },
         ]

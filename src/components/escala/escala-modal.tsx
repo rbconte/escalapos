@@ -38,6 +38,13 @@ import {
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  invalidateOperacional,
+  limparProjecoesDeEscalas,
+  sincronizarEscalas,
+  type EscalaSync,
+} from "@/lib/sync";
+
+import {
   notificarResumoOcorrencias,
   reprocessarOcorrencias,
 } from "@/lib/validacoes";
@@ -227,9 +234,12 @@ export function EscalaModal({
       };
 
       const datas = resolveDatas();
+      const produtoPorPrograma = new Map(programas.map((p) => [p.id, p.nome] as const));
 
       if (isEdit && state?.mode === "edit") {
-        // Remove the original record so changing the start date doesn't orphan it.
+        // Remove o registro original (e suas projeções) para que a mudança de
+        // data não gere órfãos em Mapa de Ilhas / Distribuição.
+        await limparProjecoesDeEscalas((q) => q.eq("id", state.escala.id));
         const { error: origError } = await supabase
           .from("escalas")
           .delete()
@@ -238,11 +248,18 @@ export function EscalaModal({
       }
 
       const novoPrograma = baseSemPessoa.programa_id;
+      const criadas: EscalaSync[] = [];
       for (const pid of alvos) {
         // Substitui apenas a alocação do MESMO programa neste período, para que
         // o replanejamento de um programa fique limpo. Alocações de OUTROS
         // programas no mesmo período são mantidas — assim a pessoa pode estar
         // em projetos diferentes ao mesmo tempo, gerando alerta de conflito.
+        await limparProjecoesDeEscalas((q) => {
+          const base = q.eq("pessoa_id", pid).in("data", datas);
+          return novoPrograma === null
+            ? base.is("programa_id", null)
+            : base.eq("programa_id", novoPrograma);
+        });
         let del = supabase
           .from("escalas")
           .delete()
@@ -253,9 +270,18 @@ export function EscalaModal({
         if (delError) throw delError;
 
         const rows = datas.map((data) => ({ ...baseSemPessoa, pessoa_id: pid, data }));
-        const { error } = await supabase.from("escalas").insert(rows);
+        const { data: inseridas, error } = await supabase
+          .from("escalas")
+          .insert(rows)
+          .select(
+            "id, demanda_id, pessoa_id, programa_id, ilha_id, data, hora_inicio, hora_fim, status",
+          );
         if (error) throw error;
+        criadas.push(...((inseridas ?? []) as EscalaSync[]));
       }
+
+      // Projeta a mesma demanda no Mapa de Ilhas e na Distribuição de Trabalho.
+      await sincronizarEscalas(criadas, produtoPorPrograma);
 
       // Reprocessa validações operacionais (histórico completo dos envolvidos).
       const ocorrencias = await reprocessarOcorrencias(alvos);
@@ -263,8 +289,7 @@ export function EscalaModal({
       return { pessoas: alvos.length, dias: datas.length, ocorrencias, alvos };
     },
     onSuccess: ({ pessoas: nPessoas, dias, ocorrencias, alvos }) => {
-      qc.invalidateQueries({ queryKey: ["escalas"] });
-      qc.invalidateQueries({ queryKey: ["ocorrencias"] });
+      invalidateOperacional(qc);
       onClose();
       const nomePorPessoa = new Map(pessoas.map((p) => [p.id, p.nome]));
       const ocorrenciasAlvo = ocorrencias.filter((o) => alvos.includes(o.pessoa_id));
@@ -287,18 +312,19 @@ export function EscalaModal({
     mutationFn: async () => {
       if (state?.mode !== "edit") return;
       const pessoaIdRemovida = state.escala.pessoa_id;
+      await limparProjecoesDeEscalas((q) => q.eq("id", state.escala.id));
       const { error } = await supabase.from("escalas").delete().eq("id", state.escala.id);
       if (error) throw error;
       await reprocessarOcorrencias([pessoaIdRemovida]);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["escalas"] });
-      qc.invalidateQueries({ queryKey: ["ocorrencias"] });
+      invalidateOperacional(qc);
       onClose();
       toast.success("Escala removida.");
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
 
   return (
     <Dialog open={!!state} onOpenChange={(o) => !o && onClose()}>
