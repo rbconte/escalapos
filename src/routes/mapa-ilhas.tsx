@@ -364,8 +364,8 @@ function MapaIlhasPage() {
           });
         }
       } else {
-        const { error } = await supabase.from("ilha_planejamentos").insert(payload);
-        if (error) throw error;
+        // Nova demanda compartilhada: gera também Distribuição (e Escala).
+        await criarDemandaDePlano(payload);
       }
       const overlaps = findOverlaps(planejamentos, {
         id: editing?.id,
