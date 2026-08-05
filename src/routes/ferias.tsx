@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import {
-  AlertTriangle, CalendarHeart, ChevronDown, ChevronRight, Plus, Search,
+  AlertTriangle, CalendarHeart, ChevronDown, ChevronRight, Pencil, Plus, Search, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,7 +25,9 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import { supabase } from "@/integrations/supabase/client";
-import { invalidateOperacional } from "@/lib/sync";
+import {
+  invalidateOperacional, materializarEscalaDeFerias, desmaterializarEscalaDeFerias,
+} from "@/lib/sync";
 
 import { pessoasQuery, todasFeriasQuery, escalasQuery } from "@/lib/queries";
 import type { PessoaComFuncao } from "@/lib/domain";
@@ -98,6 +100,8 @@ function FeriasPage() {
 
   const [search, setSearch] = useState("");
   const [progPessoa, setProgPessoa] = useState<PessoaComFuncao | null>(null);
+  const [editReg, setEditReg] = useState<Ferias | null>(null);
+  const [delReg, setDelReg] = useState<Ferias | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [allowAccruing, setAllowAccruingState] = useState<boolean>(() => getAllowAccruing());
 
@@ -172,7 +176,22 @@ function FeriasPage() {
     // Fonte única: invalidar todas as views derivadas de dados operacionais
     invalidateOperacional(qc);
     setProgPessoa(null);
+    setEditReg(null);
   }
+
+  const remover = useMutation({
+    mutationFn: async (f: Ferias) => {
+      await desmaterializarEscalaDeFerias(f.pessoa_id, f.data_inicio, f.data_fim);
+      const { error } = await supabase.from("ferias").delete().eq("id", f.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Registro de férias excluído.");
+      invalidateOperacional(qc);
+      setDelReg(null);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
 
   return (
@@ -345,6 +364,15 @@ function FeriasPage() {
                           </table>
                         </div>
                       )}
+
+                      <RegistrosFerias
+                        registros={ferias
+                          .filter((f) => f.pessoa_id === p.id)
+                          .slice()
+                          .sort((a, b) => b.data_inicio.localeCompare(a.data_inicio))}
+                        onEdit={(f) => { setProgPessoa(p); setEditReg(f); }}
+                        onDelete={(f) => setDelReg(f)}
+                      />
                     </div>
                   )}
                 </div>
@@ -371,13 +399,84 @@ function FeriasPage() {
           escalasIds={new Set(
             escalas.filter((e) => e.pessoa_id === progPessoa.id).map((e) => e.data),
           )}
-          onClose={() => setProgPessoa(null)}
+          registro={editReg}
+          onClose={() => { setProgPessoa(null); setEditReg(null); }}
           onSaved={handleSaved}
           hoje={hoje}
           allowAccruing={allowAccruing}
         />
       )}
+      <AlertDialog open={!!delReg} onOpenChange={(o) => !o && setDelReg(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir registro de férias?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {delReg && `${delReg.data_inicio} → ${delReg.data_fim}`}. Os dias correspondentes
+              também serão removidos da escala e dos demais painéis.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => delReg && remover.mutate(delReg)}>
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PageShell>
+  );
+}
+
+function RegistrosFerias({
+  registros, onEdit, onDelete,
+}: {
+  registros: Ferias[];
+  onEdit: (f: Ferias) => void;
+  onDelete: (f: Ferias) => void;
+}) {
+  return (
+    <div className="mt-4 border-t pt-3">
+      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Registros lançados
+      </div>
+      {registros.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Nenhum registro de férias lançado.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {registros.map((f) => {
+            const gozo = f.dias_gozo ?? diffDaysInclusive(f.data_inicio, f.data_fim);
+            const auto = (f.observacao ?? "").startsWith("[auto:escala]");
+            return (
+              <div
+                key={f.id}
+                className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 px-3 py-2 text-sm"
+              >
+                <span className="font-medium">{f.data_inicio} → {f.data_fim}</span>
+                <span className="text-xs text-muted-foreground">
+                  {gozo}d gozo{f.dias_abono ? ` + ${f.dias_abono}d abono` : ""}
+                  {f.periodo_aquisitivo_inicio ? ` · período ${f.periodo_aquisitivo_inicio.slice(0, 4)}` : ""}
+                </span>
+                <Badge variant="outline" className="text-[10px]">{f.status}</Badge>
+                {auto && <Badge variant="secondary" className="text-[10px]">via escala</Badge>}
+                <div className="ml-auto flex gap-1">
+                  <Button size="sm" variant="ghost" onClick={() => onEdit(f)}>
+                    <Pencil className="h-3.5 w-3.5" /> Editar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-destructive"
+                    onClick={() => onDelete(f)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Excluir
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
