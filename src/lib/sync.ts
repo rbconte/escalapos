@@ -289,3 +289,134 @@ export function ausenciaEm(
     ) ?? null
   );
 }
+
+// ── Férias ⇄ Escala (fonte única de indisponibilidade) ────────────────────
+
+/** Marcador de registros de férias criados automaticamente a partir da escala. */
+export const FERIAS_AUTO_TAG = "[auto:escala]";
+
+const MS_DIA = 86400000;
+const iso = (d: Date) => d.toISOString().slice(0, 10);
+const parseIso = (s: string) => new Date(`${s}T00:00:00Z`);
+
+export function datasEntre(inicio: string, fim: string): string[] {
+  const out: string[] = [];
+  for (let d = parseIso(inicio); d <= parseIso(fim); d = new Date(d.getTime() + MS_DIA)) {
+    out.push(iso(d));
+  }
+  return out;
+}
+
+/** Agrupa datas ordenadas em intervalos contíguos. */
+export function intervalosContiguos(datas: string[]): [string, string][] {
+  const s = Array.from(new Set(datas)).sort();
+  const out: [string, string][] = [];
+  let ini = s[0];
+  let prev = s[0];
+  for (let i = 1; i < s.length; i += 1) {
+    const atual = s[i]!;
+    const esperado = iso(new Date(parseIso(prev!).getTime() + MS_DIA));
+    if (atual !== esperado) {
+      out.push([ini!, prev!]);
+      ini = atual;
+    }
+    prev = atual;
+  }
+  if (ini && prev) out.push([ini, prev]);
+  return out;
+}
+
+/**
+ * Escala → Plano de Férias.
+ * Lança (ou remove) os registros automáticos de férias conforme o status
+ * aplicado na escala/planejamento macro para as datas informadas.
+ */
+export async function sincronizarFeriasDeEscalas(
+  pessoaIds: string[],
+  datas: string[],
+  status: string,
+) {
+  if (pessoaIds.length === 0 || datas.length === 0) return;
+  const ordenadas = Array.from(new Set(datas)).sort();
+  const min = ordenadas[0]!;
+  const max = ordenadas[ordenadas.length - 1]!;
+
+  for (const pessoaId of pessoaIds) {
+    const { error: delErr } = await supabase
+      .from("ferias")
+      .delete()
+      .eq("pessoa_id", pessoaId)
+      .like("observacao", `${FERIAS_AUTO_TAG}%`)
+      .lte("data_inicio", max)
+      .gte("data_fim", min);
+    if (delErr) throw delErr;
+
+    if (status !== "Férias") continue;
+
+    const rows = intervalosContiguos(ordenadas).map(([ini, fim]) => ({
+      pessoa_id: pessoaId,
+      data_inicio: ini,
+      data_fim: fim,
+      dias_gozo: Math.round((parseIso(fim).getTime() - parseIso(ini).getTime()) / MS_DIA) + 1,
+      dias_abono: 0,
+      status: "Programada",
+      observacao: `${FERIAS_AUTO_TAG} lançado pela escala`,
+    }));
+    if (rows.length) {
+      const { error } = await supabase.from("ferias").insert(rows);
+      if (error) throw error;
+    }
+  }
+}
+
+/**
+ * Plano de Férias → Escala.
+ * Materializa o período de férias na escala (status "Férias"), removendo
+ * qualquer alocação existente nos dias e suas projeções.
+ */
+export async function materializarEscalaDeFerias(
+  pessoaId: string,
+  dataInicio: string,
+  dataFim: string,
+) {
+  const datas = datasEntre(dataInicio, dataFim);
+  if (datas.length === 0) return;
+  await limparProjecoesDeEscalas((q) => q.eq("pessoa_id", pessoaId).in("data", datas));
+  const { error: delErr } = await supabase
+    .from("escalas")
+    .delete()
+    .eq("pessoa_id", pessoaId)
+    .in("data", datas);
+  if (delErr) throw delErr;
+  const { error } = await supabase.from("escalas").insert(
+    datas.map((data) => ({
+      pessoa_id: pessoaId,
+      data,
+      programa_id: null,
+      ilha_id: null,
+      modalidade: "TV",
+      status: "Férias",
+    })),
+  );
+  if (error) throw error;
+}
+
+/** Remove da escala os dias de férias de um período (ao editar/excluir). */
+export async function desmaterializarEscalaDeFerias(
+  pessoaId: string,
+  dataInicio: string,
+  dataFim: string,
+) {
+  const datas = datasEntre(dataInicio, dataFim);
+  if (datas.length === 0) return;
+  await limparProjecoesDeEscalas((q) =>
+    q.eq("pessoa_id", pessoaId).in("data", datas).eq("status", "Férias"),
+  );
+  const { error } = await supabase
+    .from("escalas")
+    .delete()
+    .eq("pessoa_id", pessoaId)
+    .in("data", datas)
+    .eq("status", "Férias");
+  if (error) throw error;
+}
