@@ -48,6 +48,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import {
   ausenciaEm,
+  criarDemandaDeDistribuicao,
   excluirDemanda,
   indisponibilidade,
   invalidateOperacional,
