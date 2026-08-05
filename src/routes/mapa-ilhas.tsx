@@ -70,7 +70,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
-import { excluirDemanda, invalidateOperacional, propagarDemanda } from "@/lib/sync";
+import { criarDemandaDePlano, excluirDemanda, invalidateOperacional, propagarDemanda } from "@/lib/sync";
 
 import { ilhasQuery, escalasQuery, pessoasQuery } from "@/lib/queries";
 import {
