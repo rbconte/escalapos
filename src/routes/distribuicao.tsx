@@ -48,6 +48,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import {
   ausenciaEm,
+  criarDemandaDeDistribuicao,
   excluirDemanda,
   indisponibilidade,
   invalidateOperacional,
@@ -284,8 +285,8 @@ function DistribuicaoPage() {
           });
         }
       } else {
-        const { error } = await supabase.from("distribuicao_trabalho").insert(payload);
-        if (error) throw error;
+        // Nova demanda compartilhada: gera também Mapa de Ilhas e Escala.
+        await criarDemandaDeDistribuicao(payload);
       }
       // Warn against planning divergence
       const plans = planForDate(planejamentos, form.ilha_id, form.data);

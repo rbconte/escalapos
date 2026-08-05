@@ -70,7 +70,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
-import { excluirDemanda, invalidateOperacional, propagarDemanda } from "@/lib/sync";
+import { criarDemandaDePlano, excluirDemanda, invalidateOperacional, propagarDemanda } from "@/lib/sync";
 
 import { ilhasQuery, escalasQuery, pessoasQuery } from "@/lib/queries";
 import {
@@ -364,8 +364,8 @@ function MapaIlhasPage() {
           });
         }
       } else {
-        const { error } = await supabase.from("ilha_planejamentos").insert(payload);
-        if (error) throw error;
+        // Nova demanda compartilhada: gera também Distribuição (e Escala).
+        await criarDemandaDePlano(payload);
       }
       const overlaps = findOverlaps(planejamentos, {
         id: editing?.id,

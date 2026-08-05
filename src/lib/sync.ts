@@ -420,3 +420,149 @@ export async function desmaterializarEscalaDeFerias(
     .eq("status", "Férias");
   if (error) throw error;
 }
+
+// ── Criação compartilhada (qualquer painel é porta de entrada) ─────────────
+
+export type NovaDemandaPlano = {
+  ilha_id: string;
+  produto: string;
+  cor?: string | null;
+  area?: string | null;
+  data_inicio: string;
+  data_fim: string;
+  hora_inicio: string;
+  hora_fim: string;
+  notas?: string | null;
+  programa_id?: string | null;
+  pessoa_id?: string | null;
+};
+
+/**
+ * Cria uma demanda a partir do Mapa de Ilhas: gera o bloco de planejamento e
+ * as linhas diárias em Distribuição de Trabalho (e a escala, se houver pessoa),
+ * todos com a mesma `demanda_id`.
+ */
+export async function criarDemandaDePlano(input: NovaDemandaPlano) {
+  const demanda = crypto.randomUUID();
+  const datas = datasEntre(input.data_inicio, input.data_fim);
+
+  const { error: planoErr } = await supabase.from("ilha_planejamentos").insert({
+    demanda_id: demanda,
+    ilha_id: input.ilha_id,
+    produto: input.produto,
+    cor: input.cor ?? null,
+    area: input.area ?? null,
+    data_inicio: input.data_inicio,
+    data_fim: input.data_fim,
+    hora_inicio: input.hora_inicio,
+    hora_fim: input.hora_fim,
+    notas: input.notas ?? null,
+    programa_id: input.programa_id ?? null,
+    pessoa_id: input.pessoa_id ?? null,
+    status: input.pessoa_id ? "Escalado" : "Planejado",
+  });
+  if (planoErr) throw planoErr;
+
+  const { error: distErr } = await supabase.from("distribuicao_trabalho").insert(
+    datas.map((data) => ({
+      demanda_id: demanda,
+      data,
+      ilha_id: input.ilha_id,
+      produto: input.produto,
+      programa_id: input.programa_id ?? null,
+      pessoa_id: input.pessoa_id ?? null,
+      hora_inicio: input.hora_inicio,
+      hora_fim: input.hora_fim,
+      status: "Planejado",
+    })),
+  );
+  if (distErr) throw distErr;
+
+  if (input.pessoa_id) {
+    const { error } = await supabase.from("escalas").insert(
+      datas.map((data) => ({
+        demanda_id: demanda,
+        pessoa_id: input.pessoa_id!,
+        data,
+        programa_id: input.programa_id ?? null,
+        ilha_id: input.ilha_id,
+        hora_inicio: input.hora_inicio,
+        hora_fim: input.hora_fim,
+        modalidade: "TV",
+        status: "Trabalhando",
+      })),
+    );
+    if (error) throw error;
+  }
+  return demanda;
+}
+
+export type NovaDemandaDistribuicao = {
+  data: string;
+  ilha_id: string;
+  produto?: string | null;
+  programa_id?: string | null;
+  pessoa_id?: string | null;
+  retranca?: string | null;
+  parceiro_conteudo?: string | null;
+  hora_inicio: string;
+  hora_fim: string;
+  status: string;
+  notas?: string | null;
+};
+
+/**
+ * Cria uma demanda a partir da Distribuição de Trabalho: gera a linha diária,
+ * o bloco no Mapa de Ilhas e a escala do profissional (quando informado).
+ */
+export async function criarDemandaDeDistribuicao(input: NovaDemandaDistribuicao) {
+  const demanda = crypto.randomUUID();
+  const produto = input.produto?.trim() || "Alocação";
+
+  const { error: distErr } = await supabase.from("distribuicao_trabalho").insert({
+    demanda_id: demanda,
+    data: input.data,
+    ilha_id: input.ilha_id,
+    produto: input.produto ?? null,
+    programa_id: input.programa_id ?? null,
+    pessoa_id: input.pessoa_id ?? null,
+    retranca: input.retranca ?? null,
+    parceiro_conteudo: input.parceiro_conteudo ?? null,
+    hora_inicio: input.hora_inicio,
+    hora_fim: input.hora_fim,
+    status: input.status,
+    notas: input.notas ?? null,
+  });
+  if (distErr) throw distErr;
+
+  const { error: planoErr } = await supabase.from("ilha_planejamentos").insert({
+    demanda_id: demanda,
+    ilha_id: input.ilha_id,
+    produto,
+    programa_id: input.programa_id ?? null,
+    pessoa_id: input.pessoa_id ?? null,
+    data_inicio: input.data,
+    data_fim: input.data,
+    hora_inicio: input.hora_inicio,
+    hora_fim: input.hora_fim,
+    notas: input.notas ?? null,
+    status: input.pessoa_id ? "Escalado" : "Planejado",
+  });
+  if (planoErr) throw planoErr;
+
+  if (input.pessoa_id) {
+    const { error } = await supabase.from("escalas").insert({
+      demanda_id: demanda,
+      pessoa_id: input.pessoa_id,
+      data: input.data,
+      programa_id: input.programa_id ?? null,
+      ilha_id: input.ilha_id,
+      hora_inicio: input.hora_inicio,
+      hora_fim: input.hora_fim,
+      modalidade: "TV",
+      status: "Trabalhando",
+    });
+    if (error) throw error;
+  }
+  return demanda;
+}
