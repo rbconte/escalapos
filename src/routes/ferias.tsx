@@ -393,6 +393,7 @@ function FeriasPage() {
 
       {progPessoa && (
         <ProgramarFeriasDialog
+          key={editReg?.id ?? "novo"}
           pessoa={progPessoa}
           periodos={periodosPorPessoa.get(progPessoa.id) ?? []}
           ferias={ferias.filter((f) => f.pessoa_id === progPessoa.id)}
