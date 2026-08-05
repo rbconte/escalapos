@@ -42,6 +42,7 @@ import {
   limparProjecoesDeEscalas,
   sincronizarEscalas,
   type EscalaSync,
+  sincronizarFeriasDeEscalas,
 } from "@/lib/sync";
 
 import {
@@ -283,6 +284,9 @@ export function EscalaModal({
       // Projeta a mesma demanda no Mapa de Ilhas e na Distribuição de Trabalho.
       await sincronizarEscalas(criadas, produtoPorPrograma);
 
+      // Plano de Férias como fonte única: status "Férias" vira registro de férias.
+      await sincronizarFeriasDeEscalas(alvos, datas, status);
+
       // Reprocessa validações operacionais (histórico completo dos envolvidos).
       const ocorrencias = await reprocessarOcorrencias(alvos);
 
@@ -315,6 +319,7 @@ export function EscalaModal({
       await limparProjecoesDeEscalas((q) => q.eq("id", state.escala.id));
       const { error } = await supabase.from("escalas").delete().eq("id", state.escala.id);
       if (error) throw error;
+      await sincronizarFeriasDeEscalas([pessoaIdRemovida], [state.escala.data], "");
       await reprocessarOcorrencias([pessoaIdRemovida]);
     },
     onSuccess: () => {

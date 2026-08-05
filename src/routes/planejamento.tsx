@@ -43,7 +43,7 @@ import {
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { invalidateOperacional, limparProjecoesDeEscalas } from "@/lib/sync";
+import { invalidateOperacional, limparProjecoesDeEscalas, sincronizarFeriasDeEscalas } from "@/lib/sync";
 
 import {
   conteudosQuery,
@@ -140,6 +140,7 @@ function PlanejamentoPage() {
         status: args.status,
       });
       if (error) throw error;
+      await sincronizarFeriasDeEscalas([args.pessoaId], [args.data], args.status);
     },
     onSuccess: () => invalidateOperacional(qc),
     onError: (e: Error) => toast.error(e.message),
@@ -178,6 +179,7 @@ function PlanejamentoPage() {
       }));
       const { error } = await supabase.from("escalas").insert(rows);
       if (error) throw error;
+      await sincronizarFeriasDeEscalas([args.pessoaId], dates, args.status);
     },
     onSuccess: () => invalidateOperacional(qc),
     onError: (e: Error) => toast.error(e.message),
@@ -194,6 +196,7 @@ function PlanejamentoPage() {
         .eq("pessoa_id", args.pessoaId)
         .eq("data", args.data);
       if (error) throw error;
+      await sincronizarFeriasDeEscalas([args.pessoaId], [args.data], "");
     },
     onSuccess: () => invalidateOperacional(qc),
     onError: (e: Error) => toast.error(e.message),
