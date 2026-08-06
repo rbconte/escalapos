@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import {
-  AlertTriangle, CalendarHeart, ChevronDown, ChevronRight, Pencil, Plus, Search, Trash2,
+  AlertTriangle, CalendarHeart, ChevronDown, ChevronLeft, ChevronRight, Pencil, Plus, Search, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -807,28 +807,169 @@ function ProgramarFeriasDialog({
   );
 }
 
-/* --------------------------- Calendário anual --------------------------- */
+/* --------------------------- Calendário de férias --------------------------- */
+
+function periodoLabelFromISO(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const y = Number(iso.slice(0, 4));
+  return `${y}/${y + 1}`;
+}
 
 function CalendarioAnual({
   pessoas, ferias, ano,
 }: { pessoas: PessoaComFuncao[]; ferias: Ferias[]; ano: number }) {
+  const [anoSel, setAnoSel] = useState(ano);
+  const [mesSel, setMesSel] = useState(new Date().getMonth());
+  const [modo, setModo] = useState<"anual" | "mensal">("anual");
+
   const meses = Array.from({ length: 12 }, (_, i) => i);
   const monthLabel = (m: number) =>
-    new Date(ano, m, 1).toLocaleDateString("pt-BR", { month: "short" });
-  const daysInMonth = (m: number) => new Date(ano, m + 1, 0).getDate();
+    new Date(anoSel, m, 1).toLocaleDateString("pt-BR", { month: "short" });
+  const monthLong = (m: number) =>
+    new Date(anoSel, m, 1).toLocaleDateString("pt-BR", { month: "long" });
+  const daysInMonth = (m: number) => new Date(anoSel, m + 1, 0).getDate();
 
   function feriasNoMes(pessoaId: string, m: number) {
-    const start = `${ano}-${String(m + 1).padStart(2, "0")}-01`;
-    const end = `${ano}-${String(m + 1).padStart(2, "0")}-${daysInMonth(m)}`;
+    const start = `${anoSel}-${String(m + 1).padStart(2, "0")}-01`;
+    const end = `${anoSel}-${String(m + 1).padStart(2, "0")}-${daysInMonth(m)}`;
     return ferias.filter(
       (f) => f.pessoa_id === pessoaId && f.data_fim >= start && f.data_inicio <= end,
     );
   }
 
-  function periodoLabelFromISO(iso: string | null | undefined): string {
-    if (!iso) return "";
-    const y = Number(iso.slice(0, 4));
-    return `${y}/${y + 1}`;
+  function shift(dir: -1 | 1) {
+    if (modo === "anual") {
+      setAnoSel((a) => a + dir);
+      return;
+    }
+    const next = mesSel + dir;
+    if (next < 0) { setMesSel(11); setAnoSel((a) => a - 1); }
+    else if (next > 11) { setMesSel(0); setAnoSel((a) => a + 1); }
+    else setMesSel(next);
+  }
+
+  const hojeISO = TODAY();
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" onClick={() => shift(-1)} aria-label="Anterior">
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <div className="min-w-[180px] text-center text-sm font-semibold capitalize">
+            {modo === "anual" ? anoSel : `${monthLong(mesSel)} de ${anoSel}`}
+          </div>
+          <Button variant="outline" size="icon" onClick={() => shift(1)} aria-label="Próximo">
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => { setAnoSel(new Date().getFullYear()); setMesSel(new Date().getMonth()); }}
+          >
+            Hoje
+          </Button>
+        </div>
+        <Tabs value={modo} onValueChange={(v) => setModo(v as "anual" | "mensal")}>
+          <TabsList>
+            <TabsTrigger value="mensal">Mensal</TabsTrigger>
+            <TabsTrigger value="anual">Anual</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+
+      {modo === "anual" ? (
+        <div className="overflow-x-auto rounded-xl border bg-card shadow-soft">
+          <table className="w-full min-w-[900px] text-xs">
+            <thead className="bg-muted/40 text-left uppercase text-muted-foreground">
+              <tr>
+                <th className="sticky left-0 z-10 bg-muted/60 px-3 py-2">Colaborador</th>
+                {meses.map((m) => (
+                  <th
+                    key={m}
+                    className="cursor-pointer px-2 py-2 text-center capitalize hover:text-foreground"
+                    onClick={() => { setMesSel(m); setModo("mensal"); }}
+                  >
+                    {monthLabel(m)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {pessoas.map((p) => (
+                <tr key={p.id} className="border-t">
+                  <td className="sticky left-0 z-10 bg-card px-3 py-2 font-medium">{p.nome}</td>
+                  {meses.map((m) => {
+                    const fs = feriasNoMes(p.id, m);
+                    if (fs.length === 0) return <td key={m} className="px-2 py-2"></td>;
+                    return (
+                      <td key={m} className="px-1 py-1">
+                        {fs.map((f) => {
+                          const gozo = f.dias_gozo ?? diffDaysInclusive(f.data_inicio, f.data_fim);
+                          const abono = f.dias_abono ?? 0;
+                          const label = periodoLabelFromISO(f.periodo_aquisitivo_inicio);
+                          return (
+                            <div
+                              key={f.id}
+                              title={`${f.data_inicio} → ${f.data_fim} • ${gozo}d gozo${abono ? ` + ${abono}d abono` : ""}${label ? ` • Período ${label}` : ""}`}
+                              className="my-0.5 rounded bg-sky-500/20 px-1.5 py-0.5 text-[10px] text-sky-800"
+                            >
+                              <div className="font-semibold">{f.data_inicio.slice(8)}–{f.data_fim.slice(8)}</div>
+                              <div className="text-[9px]">
+                                {gozo}d{abono ? ` + ${abono}d abono` : ""}
+                                {label && ` · ${label}`}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <CalendarioMensal
+          pessoas={pessoas}
+          ferias={ferias}
+          ano={anoSel}
+          mes={mesSel}
+          hojeISO={hojeISO}
+        />
+      )}
+    </div>
+  );
+}
+
+function CalendarioMensal({
+  pessoas, ferias, ano, mes, hojeISO,
+}: {
+  pessoas: PessoaComFuncao[]; ferias: Ferias[]; ano: number; mes: number; hojeISO: string;
+}) {
+  const total = new Date(ano, mes + 1, 0).getDate();
+  const dias = Array.from({ length: total }, (_, i) => i + 1);
+  const iso = (d: number) =>
+    `${ano}-${String(mes + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  const inicioMes = iso(1);
+  const fimMes = iso(total);
+
+  const doMes = ferias.filter((f) => f.data_fim >= inicioMes && f.data_inicio <= fimMes);
+  const comFerias = pessoas.filter((p) => doMes.some((f) => f.pessoa_id === p.id));
+
+  const isWeekend = (d: number) => {
+    const g = new Date(ano, mes, d).getDay();
+    return g === 0 || g === 6;
+  };
+
+  if (comFerias.length === 0) {
+    return (
+      <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground">
+        Nenhuma férias programada neste mês.
+      </div>
+    );
   }
 
   return (
@@ -837,43 +978,43 @@ function CalendarioAnual({
         <thead className="bg-muted/40 text-left uppercase text-muted-foreground">
           <tr>
             <th className="sticky left-0 z-10 bg-muted/60 px-3 py-2">Colaborador</th>
-            {meses.map((m) => (
-              <th key={m} className="px-2 py-2 text-center capitalize">{monthLabel(m)}</th>
+            {dias.map((d) => (
+              <th
+                key={d}
+                className={`w-6 px-0 py-2 text-center font-medium ${isWeekend(d) ? "bg-muted/60" : ""} ${iso(d) === hojeISO ? "text-primary" : ""}`}
+              >
+                {d}
+              </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {pessoas.map((p) => (
-            <tr key={p.id} className="border-t">
-              <td className="sticky left-0 z-10 bg-card px-3 py-2 font-medium">{p.nome}</td>
-              {meses.map((m) => {
-                const fs = feriasNoMes(p.id, m);
-                if (fs.length === 0) return <td key={m} className="px-2 py-2"></td>;
-                return (
-                  <td key={m} className="px-1 py-1">
-                    {fs.map((f) => {
-                      const gozo = f.dias_gozo ?? diffDaysInclusive(f.data_inicio, f.data_fim);
-                      const abono = f.dias_abono ?? 0;
-                      const label = periodoLabelFromISO(f.periodo_aquisitivo_inicio);
-                      return (
+          {comFerias.map((p) => {
+            const fs = doMes.filter((f) => f.pessoa_id === p.id);
+            return (
+              <tr key={p.id} className="border-t">
+                <td className="sticky left-0 z-10 bg-card px-3 py-2 font-medium">{p.nome}</td>
+                {dias.map((d) => {
+                  const day = iso(d);
+                  const f = fs.find((x) => x.data_inicio <= day && day <= x.data_fim);
+                  const label = f ? periodoLabelFromISO(f.periodo_aquisitivo_inicio) : "";
+                  return (
+                    <td
+                      key={d}
+                      className={`px-0 py-1 text-center ${isWeekend(d) ? "bg-muted/30" : ""}`}
+                    >
+                      {f && (
                         <div
-                          key={f.id}
-                          title={`${f.data_inicio} → ${f.data_fim} • ${gozo}d gozo${abono ? ` + ${abono}d abono` : ""}${label ? ` • Período ${label}` : ""}`}
-                          className="my-0.5 rounded bg-sky-500/20 px-1.5 py-0.5 text-[10px] text-sky-800"
-                        >
-                          <div className="font-semibold">{f.data_inicio.slice(8)}–{f.data_fim.slice(8)}</div>
-                          <div className="text-[9px]">
-                            {gozo}d{abono ? ` + ${abono}d abono` : ""}
-                            {label && ` · ${label}`}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
+                          title={`${f.data_inicio} → ${f.data_fim}${label ? ` • Período ${label}` : ""}`}
+                          className="mx-px h-5 rounded-sm bg-sky-500/40"
+                        />
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
