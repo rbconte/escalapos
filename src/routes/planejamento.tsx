@@ -937,7 +937,7 @@ function CoberturaRow({
   return (
     <tr>
       <td
-        className="sticky left-0 z-10 border-b border-r bg-muted/60 px-4 py-1.5"
+        className="sticky left-0 z-10 border-b border-r bg-card px-4 py-1.5"
         style={{ width: 220, minWidth: 220 }}
       >
         <div className="flex items-center gap-2">
