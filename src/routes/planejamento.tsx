@@ -636,7 +636,6 @@ function CellPicker({
   iso,
   cell,
   programas,
-  onPick,
   onPickRange,
   onClear,
 }: {
@@ -653,120 +652,150 @@ function CellPicker({
   onClear: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [periodPrograma, setPeriodPrograma] = useState<ProgramaComConteudo | null>(
-    null,
+  const [conteudoId, setConteudoId] = useState<string>(ALL);
+  const [programaId, setProgramaId] = useState<string>(
+    cell?.programa_id ?? "",
   );
+  const [status, setStatus] = useState<string>(cell?.status ?? "Trabalhando");
   const [startISO, setStartISO] = useState(iso);
-  const [endISO, setEndISO] = useState(iso);
+  const [dias, setDias] = useState<number>(1);
+
+  const conteudos = useMemo(() => {
+    const map = new Map<string, { id: string; nome: string }>();
+    for (const p of programas) {
+      if (p.conteudo) map.set(p.conteudo.id, { id: p.conteudo.id, nome: p.conteudo.nome });
+    }
+    return [...map.values()].sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [programas]);
+
+  const programasFiltrados = useMemo(
+    () =>
+      conteudoId === ALL
+        ? programas
+        : programas.filter((p) => p.conteudo?.id === conteudoId),
+    [programas, conteudoId],
+  );
+
+  const isEspecial = status !== "Trabalhando";
+
+  function reset() {
+    setConteudoId(
+      cell?.programa?.conteudo?.id ?? ALL,
+    );
+    setProgramaId(cell?.programa_id ?? "");
+    setStatus(cell?.status ?? "Trabalhando");
+    setStartISO(iso);
+    setDias(1);
+  }
+
+  function endFromDias() {
+    const d = new Date(startISO + "T00:00:00");
+    d.setDate(d.getDate() + Math.max(dias, 1) - 1);
+    return ISO(d);
+  }
 
   const trigger = cell ? <CellChip escala={cell} /> : <EmptyCellButton />;
 
   return (
     <>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            className="block w-full"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {trigger}
-          </button>
-        </PopoverTrigger>
-        <PopoverContent className="w-72 p-3" align="start">
-          <div className="space-y-3">
-            <div>
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Produto
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {programas.map((pr) => (
-                  <button
-                    key={pr.id}
-                    type="button"
-                    onClick={() => {
-                      setStartISO(iso);
-                      setEndISO(iso);
-                      setOpen(false);
-                      const prog = pr;
-                      setTimeout(() => setPeriodPrograma(prog), 80);
-                    }}
-                    className="rounded-md border px-2 py-1 text-xs font-semibold transition-transform hover:scale-[1.03]"
-                    style={{
-                      backgroundColor: hexToSoftBg(pr.cor, 0.18),
-                      borderColor: hexToSoftBg(pr.cor, 0.4),
-                      color: pr.cor,
-                    }}
-                    title={pr.nome}
-                  >
-                    {pr.sigla || pr.nome}
-                  </button>
-                ))}
-                {programas.length === 0 && (
-                  <span className="text-xs text-muted-foreground">
-                    Nenhum programa cadastrado.
-                  </span>
-                )}
-              </div>
-            </div>
-            <div>
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Situação especial
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {SITUACOES_ESPECIAIS.map((s) => (
-                  <button
-                    key={s.key}
-                    type="button"
-                    onClick={() => {
-                      onPick(null, s.key);
-                      setOpen(false);
-                    }}
-                    className="rounded-md border px-2 py-1 text-xs font-semibold transition-transform hover:scale-[1.03]"
-                    style={{
-                      backgroundColor: hexToSoftBg(s.cor, 0.16),
-                      borderColor: hexToSoftBg(s.cor, 0.4),
-                      color: s.cor,
-                    }}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {cell && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full text-destructive"
-                onClick={() => {
-                  onClear();
-                  setOpen(false);
-                }}
-              >
-                <X className="h-3.5 w-3.5" /> Limpar célula
-              </Button>
-            )}
-          </div>
-        </PopoverContent>
-      </Popover>
-
-      <Dialog
-        open={!!periodPrograma}
-        onOpenChange={(o) => !o && setPeriodPrograma(null)}
+      <button
+        type="button"
+        className="block w-full"
+        onClick={(e) => {
+          e.stopPropagation();
+          reset();
+          setOpen(true);
+        }}
       >
-        <DialogContent className="sm:max-w-md">
+        {trigger}
+      </button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Período de alocação</DialogTitle>
+            <DialogTitle>Alocação</DialogTitle>
             <DialogDescription>
-              Defina o intervalo em que a pessoa ficará no programa{" "}
-              <span className="font-semibold">{periodPrograma?.nome}</span>.
+              Defina conteúdo, produto, período e situação da alocação.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
               <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Início
+                Situação
+              </label>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Trabalhando">Trabalhando</SelectItem>
+                  {SITUACOES_ESPECIAIS.map((s) => (
+                    <SelectItem key={s.key} value={s.key}>
+                      {s.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Conteúdo
+              </label>
+              <Select
+                value={conteudoId}
+                onValueChange={(v) => {
+                  setConteudoId(v);
+                  setProgramaId("");
+                }}
+                disabled={isEspecial}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>Todos os conteúdos</SelectItem>
+                  {conteudos.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Produto
+              </label>
+              <Select
+                value={programaId}
+                onValueChange={setProgramaId}
+                disabled={isEspecial}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o produto" />
+                </SelectTrigger>
+                <SelectContent>
+                  {programasFiltrados.map((pr) => (
+                    <SelectItem key={pr.id} value={pr.id}>
+                      {pr.nome}
+                      {pr.sigla ? ` (${pr.sigla})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {isEspecial && (
+                <p className="text-[11px] text-muted-foreground">
+                  Situações especiais não exigem produto.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Data de início
               </label>
               <Input
                 type="date"
@@ -774,33 +803,60 @@ function CellPicker({
                 onChange={(e) => setStartISO(e.target.value)}
               />
             </div>
-            <div className="space-y-1">
+
+            <div className="space-y-1.5">
               <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Fim
+                Quantidade de dias
               </label>
               <Input
-                type="date"
-                value={endISO}
-                min={startISO}
-                onChange={(e) => setEndISO(e.target.value)}
+                type="number"
+                min={1}
+                value={dias}
+                onChange={(e) => setDias(Math.max(1, Number(e.target.value) || 1))}
               />
+              <p className="text-[11px] text-muted-foreground">
+                Término em {endFromDias().split("-").reverse().join("/")}
+              </p>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setPeriodPrograma(null)}>
-              Cancelar
-            </Button>
-            <Button
-              onClick={() => {
-                if (!periodPrograma) return;
-                const s = startISO;
-                const e = endISO < startISO ? startISO : endISO;
-                onPickRange(periodPrograma.id, "Trabalhando", s, e);
-                setPeriodPrograma(null);
-              }}
-            >
-              Confirmar
-            </Button>
+
+          <DialogFooter className="gap-2 sm:justify-between">
+            {cell ? (
+              <Button
+                variant="ghost"
+                className="text-destructive"
+                onClick={() => {
+                  onClear();
+                  setOpen(false);
+                }}
+              >
+                <X className="h-3.5 w-3.5" /> Limpar célula
+              </Button>
+            ) : (
+              <span />
+            )}
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={() => setOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!isEspecial && !programaId) {
+                    toast.error("Selecione um produto.");
+                    return;
+                  }
+                  onPickRange(
+                    isEspecial ? null : programaId,
+                    status,
+                    startISO,
+                    endFromDias(),
+                  );
+                  setOpen(false);
+                }}
+              >
+                Confirmar
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
