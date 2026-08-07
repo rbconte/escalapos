@@ -626,6 +626,39 @@ export type Database = {
           },
         ]
       }
+      situacoes: {
+        Row: {
+          ativo: boolean
+          cor: string
+          created_at: string
+          especial: boolean
+          id: string
+          nome: string
+          ordem: number
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          cor?: string
+          created_at?: string
+          especial?: boolean
+          id?: string
+          nome: string
+          ordem?: number
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          cor?: string
+          created_at?: string
+          especial?: boolean
+          id?: string
+          nome?: string
+          ordem?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tipos_conteudo: {
         Row: {
           ativo: boolean
