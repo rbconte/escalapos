@@ -6,6 +6,7 @@ import {
   CalendarHeart,
   CalendarRange,
   CalendarSearch,
+  CircleDot,
   ClipboardList,
   LayoutGrid,
   Layers,
@@ -38,6 +39,7 @@ const operacional = [
   { title: "Pessoas", url: "/pessoas", icon: Users },
 
   { title: "Funções", url: "/funcoes", icon: Briefcase },
+  { title: "Situações", url: "/situacoes", icon: CircleDot },
   { title: "Conteúdos", url: "/conteudos", icon: Layers },
   { title: "Programas", url: "/programas", icon: Tv },
   { title: "Ilhas", url: "/ilhas", icon: LayoutGrid },

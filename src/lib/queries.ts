@@ -165,3 +165,19 @@ export const licencasQuery = (from?: string, to?: string) =>
       return data ?? [];
     },
   });
+
+export type Situacao = Tables<"situacoes">;
+
+export const situacoesQuery = () =>
+  queryOptions({
+    queryKey: ["situacoes"],
+    queryFn: async (): Promise<Situacao[]> => {
+      const { data, error } = await supabase
+        .from("situacoes")
+        .select("*")
+        .order("ordem")
+        .order("nome");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });

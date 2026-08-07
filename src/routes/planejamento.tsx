@@ -52,8 +52,8 @@ import {
   programaNecessidadesQuery,
   programasQuery,
 } from "@/lib/queries";
+import { corSituacao, useSituacoes, useSituacoesEspeciais } from "@/lib/use-situacoes";
 import {
-  SITUACOES_ESPECIAIS,
   contrastText,
   hexToSoftBg,
   type EscalaCompleta,
@@ -651,6 +651,7 @@ function CellPicker({
   ) => void;
   onClear: () => void;
 }) {
+  const situacoesEspeciais = useSituacoesEspeciais();
   const [open, setOpen] = useState(false);
   const [conteudoId, setConteudoId] = useState<string>(ALL);
   const [programaId, setProgramaId] = useState<string>(
@@ -730,9 +731,9 @@ function CellPicker({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Trabalhando">Trabalhando</SelectItem>
-                  {SITUACOES_ESPECIAIS.map((s) => (
-                    <SelectItem key={s.key} value={s.key}>
-                      {s.label}
+                  {situacoesEspeciais.map((s) => (
+                    <SelectItem key={s.id} value={s.nome}>
+                      {s.nome}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -873,6 +874,7 @@ function EmptyCellButton() {
 }
 
 function CellChip({ escala }: { escala: EscalaCompleta }) {
+  const situacoes = useSituacoes();
   if (escala.programa_id && escala.programa) {
     const cor = escala.programa.cor;
     const sigla = escala.programa.sigla || escala.programa.nome.slice(0, 3).toUpperCase();
@@ -890,8 +892,7 @@ function CellChip({ escala }: { escala: EscalaCompleta }) {
       </div>
     );
   }
-  const sit = SITUACOES_ESPECIAIS.find((s) => s.key === escala.status);
-  const cor = sit?.cor ?? "#94a3b8";
+  const cor = corSituacao(situacoes, escala.status);
   return (
     <div
       className="flex h-9 w-full items-center justify-center rounded-md border text-[10px] font-semibold uppercase tracking-wide"
@@ -998,6 +999,7 @@ function CoberturaRow({
 // =============== Legenda ===============
 
 function Legenda({ conteudos }: { conteudos: { id: string; nome: string; cor: string }[] }) {
+  const situacoesEspeciais = useSituacoesEspeciais();
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t bg-card/60 px-4 py-2 text-[11px]">
       <span className="font-semibold uppercase tracking-wide text-muted-foreground">
@@ -1013,13 +1015,13 @@ function Legenda({ conteudos }: { conteudos: { id: string; nome: string; cor: st
         </span>
       ))}
       <span className="mx-2 h-3 w-px bg-border" />
-      {SITUACOES_ESPECIAIS.map((s) => (
-        <span key={s.key} className="flex items-center gap-1.5">
+      {situacoesEspeciais.map((s) => (
+        <span key={s.id} className="flex items-center gap-1.5">
           <span
             className="h-3 w-3 rounded-sm"
             style={{ backgroundColor: s.cor }}
           />
-          {s.label}
+          {s.nome}
         </span>
       ))}
     </div>

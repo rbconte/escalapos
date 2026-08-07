@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SituacoesRouteImport } from './routes/situacoes'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as ProgramasRouteImport } from './routes/programas'
 import { Route as PlanejamentoRouteImport } from './routes/planejamento'
@@ -28,6 +29,11 @@ import { Route as GestaoPessoasRouteImport } from './routes/gestao.pessoas'
 import { Route as GestaoOperacaoRouteImport } from './routes/gestao.operacao'
 import { Route as GestaoConteudosRouteImport } from './routes/gestao.conteudos'
 
+const SituacoesRoute = SituacoesRouteImport.update({
+  id: '/situacoes',
+  path: '/situacoes',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
   path: '/sitemap.xml',
@@ -133,6 +139,7 @@ export interface FileRoutesByFullPath {
   '/planejamento': typeof PlanejamentoRoute
   '/programas': typeof ProgramasRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/situacoes': typeof SituacoesRoute
   '/gestao/conteudos': typeof GestaoConteudosRoute
   '/gestao/operacao': typeof GestaoOperacaoRoute
   '/gestao/pessoas': typeof GestaoPessoasRoute
@@ -152,6 +159,7 @@ export interface FileRoutesByTo {
   '/planejamento': typeof PlanejamentoRoute
   '/programas': typeof ProgramasRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/situacoes': typeof SituacoesRoute
   '/gestao/conteudos': typeof GestaoConteudosRoute
   '/gestao/operacao': typeof GestaoOperacaoRoute
   '/gestao/pessoas': typeof GestaoPessoasRoute
@@ -173,6 +181,7 @@ export interface FileRoutesById {
   '/planejamento': typeof PlanejamentoRoute
   '/programas': typeof ProgramasRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/situacoes': typeof SituacoesRoute
   '/gestao/conteudos': typeof GestaoConteudosRoute
   '/gestao/operacao': typeof GestaoOperacaoRoute
   '/gestao/pessoas': typeof GestaoPessoasRoute
@@ -195,6 +204,7 @@ export interface FileRouteTypes {
     | '/planejamento'
     | '/programas'
     | '/sitemap.xml'
+    | '/situacoes'
     | '/gestao/conteudos'
     | '/gestao/operacao'
     | '/gestao/pessoas'
@@ -214,6 +224,7 @@ export interface FileRouteTypes {
     | '/planejamento'
     | '/programas'
     | '/sitemap.xml'
+    | '/situacoes'
     | '/gestao/conteudos'
     | '/gestao/operacao'
     | '/gestao/pessoas'
@@ -234,6 +245,7 @@ export interface FileRouteTypes {
     | '/planejamento'
     | '/programas'
     | '/sitemap.xml'
+    | '/situacoes'
     | '/gestao/conteudos'
     | '/gestao/operacao'
     | '/gestao/pessoas'
@@ -255,10 +267,18 @@ export interface RootRouteChildren {
   PlanejamentoRoute: typeof PlanejamentoRoute
   ProgramasRoute: typeof ProgramasRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  SituacoesRoute: typeof SituacoesRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/situacoes': {
+      id: '/situacoes'
+      path: '/situacoes'
+      fullPath: '/situacoes'
+      preLoaderRoute: typeof SituacoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sitemap.xml': {
       id: '/sitemap.xml'
       path: '/sitemap.xml'
@@ -421,6 +441,7 @@ const rootRouteChildren: RootRouteChildren = {
   PlanejamentoRoute: PlanejamentoRoute,
   ProgramasRoute: ProgramasRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  SituacoesRoute: SituacoesRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

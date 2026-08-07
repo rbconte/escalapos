@@ -57,9 +57,9 @@ import {
   pessoasQuery,
   programasQuery,
 } from "@/lib/queries";
+import { corSituacao, useSituacoes } from "@/lib/use-situacoes";
 import {
   MODALIDADES,
-  STATUS_ESCALA,
   STATUS_META,
   contrastText,
   hexToSoftBg,
@@ -120,6 +120,7 @@ function EscalaPage() {
   const { data: ilhas } = useSuspenseQuery(ilhasQuery());
   const { data: funcoes } = useSuspenseQuery(funcoesQuery());
   const { data: conteudos } = useSuspenseQuery(conteudosQuery());
+  const situacoes = useSituacoes();
 
   const qc = useQueryClient();
   const [view, setView] = useState<ViewMode>("Semanal");
@@ -588,7 +589,7 @@ function EscalaPage() {
           <FilterSelect value={fModalidade} onChange={setFModalidade} placeholder="Modalidade"
             options={MODALIDADES.map((m) => ({ value: m, label: m }))} />
           <FilterSelect value={fStatus} onChange={setFStatus} placeholder="Status"
-            options={STATUS_ESCALA.map((s) => ({ value: s, label: s }))} />
+            options={situacoes.map((s) => ({ value: s.nome, label: s.nome }))} />
 
           {hasActiveFilters && (
             <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1">
@@ -858,7 +859,9 @@ function CellChip({
 }) {
   const trabalhando = escala.status === "Trabalhando";
   const cor = escala.programa?.cor ?? "#64748b";
+  const situacoes = useSituacoes();
   const meta = STATUS_META[escala.status];
+  const corStatus = corSituacao(situacoes, escala.status);
 
   const dragProps = {
     draggable: true,
@@ -880,9 +883,21 @@ function CellChip({
           "w-full cursor-grab rounded-md border px-2 py-1.5 text-left text-xs transition-transform hover:scale-[1.02] active:cursor-grabbing",
           meta?.chip,
         )}
+        style={
+          meta
+            ? undefined
+            : {
+                backgroundColor: hexToSoftBg(corStatus, 0.16),
+                borderColor: hexToSoftBg(corStatus, 0.4),
+                color: corStatus,
+              }
+        }
       >
         <span className="flex items-center gap-1.5 font-semibold">
-          <span className={cn("h-1.5 w-1.5 rounded-full", meta?.dot)} />
+          <span
+            className={cn("h-1.5 w-1.5 rounded-full", meta?.dot)}
+            style={meta ? undefined : { backgroundColor: corStatus }}
+          />
           {escala.status}
         </span>
       </button>
