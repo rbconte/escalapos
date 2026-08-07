@@ -59,7 +59,6 @@ import {
 } from "@/lib/queries";
 import {
   MODALIDADES,
-  STATUS_ESCALA,
   STATUS_META,
   contrastText,
   hexToSoftBg,
@@ -588,7 +587,7 @@ function EscalaPage() {
           <FilterSelect value={fModalidade} onChange={setFModalidade} placeholder="Modalidade"
             options={MODALIDADES.map((m) => ({ value: m, label: m }))} />
           <FilterSelect value={fStatus} onChange={setFStatus} placeholder="Status"
-            options={STATUS_ESCALA.map((s) => ({ value: s, label: s }))} />
+            options={situacoes.map((s) => ({ value: s.nome, label: s.nome }))} />
 
           {hasActiveFilters && (
             <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1">

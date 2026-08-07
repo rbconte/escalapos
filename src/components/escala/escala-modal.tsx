@@ -51,7 +51,6 @@ import {
 } from "@/lib/validacoes";
 import {
   MODALIDADES,
-  STATUS_ESCALA,
   type EscalaCompleta,
   type Ilha,
   type PessoaComFuncao,
@@ -580,9 +579,9 @@ export function EscalaModal({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {STATUS_ESCALA.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
+                {situacoes.map((s) => (
+                  <SelectItem key={s.id} value={s.nome}>
+                    {s.nome}
                   </SelectItem>
                 ))}
               </SelectContent>
