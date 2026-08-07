@@ -57,6 +57,7 @@ import {
   pessoasQuery,
   programasQuery,
 } from "@/lib/queries";
+import { useSituacoes } from "@/lib/use-situacoes";
 import {
   MODALIDADES,
   STATUS_META,
@@ -119,6 +120,7 @@ function EscalaPage() {
   const { data: ilhas } = useSuspenseQuery(ilhasQuery());
   const { data: funcoes } = useSuspenseQuery(funcoesQuery());
   const { data: conteudos } = useSuspenseQuery(conteudosQuery());
+  const situacoes = useSituacoes();
 
   const qc = useQueryClient();
   const [view, setView] = useState<ViewMode>("Semanal");

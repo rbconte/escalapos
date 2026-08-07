@@ -52,6 +52,7 @@ import {
   programaNecessidadesQuery,
   programasQuery,
 } from "@/lib/queries";
+import { corSituacao, useSituacoes, useSituacoesEspeciais } from "@/lib/use-situacoes";
 import {
   contrastText,
   hexToSoftBg,
@@ -650,6 +651,7 @@ function CellPicker({
   ) => void;
   onClear: () => void;
 }) {
+  const situacoesEspeciais = useSituacoesEspeciais();
   const [open, setOpen] = useState(false);
   const [conteudoId, setConteudoId] = useState<string>(ALL);
   const [programaId, setProgramaId] = useState<string>(

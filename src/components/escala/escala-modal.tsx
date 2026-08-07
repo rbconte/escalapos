@@ -56,6 +56,7 @@ import {
   type PessoaComFuncao,
   type Programa,
 } from "@/lib/domain";
+import { useSituacoes } from "@/lib/use-situacoes";
 
 const NONE = "__none__";
 
@@ -91,6 +92,7 @@ export function EscalaModal({
   const [horaInicio, setHoraInicio] = useState("14:00");
   const [horaFim, setHoraFim] = useState("23:00");
   const [modalidade, setModalidade] = useState<string>("TV");
+  const situacoes = useSituacoes();
   const [status, setStatus] = useState<string>("Trabalhando");
   const [incluirFinaisDeSemana, setIncluirFinaisDeSemana] = useState(true);
 
