@@ -57,7 +57,7 @@ import {
   pessoasQuery,
   programasQuery,
 } from "@/lib/queries";
-import { useSituacoes } from "@/lib/use-situacoes";
+import { corSituacao, useSituacoes } from "@/lib/use-situacoes";
 import {
   MODALIDADES,
   STATUS_META,
@@ -859,7 +859,9 @@ function CellChip({
 }) {
   const trabalhando = escala.status === "Trabalhando";
   const cor = escala.programa?.cor ?? "#64748b";
+  const situacoes = useSituacoes();
   const meta = STATUS_META[escala.status];
+  const corStatus = corSituacao(situacoes, escala.status);
 
   const dragProps = {
     draggable: true,
@@ -881,9 +883,21 @@ function CellChip({
           "w-full cursor-grab rounded-md border px-2 py-1.5 text-left text-xs transition-transform hover:scale-[1.02] active:cursor-grabbing",
           meta?.chip,
         )}
+        style={
+          meta
+            ? undefined
+            : {
+                backgroundColor: hexToSoftBg(corStatus, 0.16),
+                borderColor: hexToSoftBg(corStatus, 0.4),
+                color: corStatus,
+              }
+        }
       >
         <span className="flex items-center gap-1.5 font-semibold">
-          <span className={cn("h-1.5 w-1.5 rounded-full", meta?.dot)} />
+          <span
+            className={cn("h-1.5 w-1.5 rounded-full", meta?.dot)}
+            style={meta ? undefined : { backgroundColor: corStatus }}
+          />
           {escala.status}
         </span>
       </button>
