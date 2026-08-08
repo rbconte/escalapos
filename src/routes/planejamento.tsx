@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { CalendarHeader } from "@/components/calendar-header";
 import {
   Dialog,
   DialogContent,
