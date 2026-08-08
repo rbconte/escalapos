@@ -476,96 +476,86 @@ function EscalaPage() {
     <div className="flex h-[100dvh] flex-col">
       {/* Toolbar */}
       <div className="border-b bg-card/50 px-4 py-3 sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <SidebarTrigger className="hidden md:flex" />
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent text-accent-foreground">
-              <CalendarRange className="h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="font-display text-lg font-bold leading-tight tracking-tight">
-                Escala Operacional
-              </h1>
-              <p className="text-sm text-muted-foreground">{rangeLabel(anchor, view)}</p>
-            </div>
-          </div>
+        <CalendarHeader
+          title="Escala Operacional"
+          rangeLabel={rangeLabel(anchor, view)}
+          icon={<CalendarRange className="h-5 w-5" />}
+          prefix={<SidebarTrigger className="hidden md:flex" />}
+          actions={
+            <>
+              {/* View switcher */}
+              <div className="flex rounded-lg border bg-background p-0.5">
+                {(["Diário", "Semanal", "Mensal"] as ViewMode[]).map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => setView(v)}
+                    className={cn(
+                      "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                      view === v
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {/* View switcher */}
-            <div className="flex rounded-lg border bg-background p-0.5">
-              {(["Diário", "Semanal", "Mensal"] as ViewMode[]).map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setView(v)}
-                  className={cn(
-                    "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                    view === v
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
+              {/* Navigation */}
+              <div className="flex items-center gap-1">
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={() => setAnchor((a) => shiftAnchor(a, view, -1))}
+                  aria-label="Período anterior"
                 >
-                  {v}
-                </button>
-              ))}
-            </div>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="gap-2">
+                      <CalendarRange className="h-4 w-4" />
+                      Ir para
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="end">
+                    <Calendar
+                      mode="single"
+                      selected={anchor}
+                      onSelect={(d) => d && setAnchor(d)}
+                      locale={undefined}
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={() => setAnchor((a) => shiftAnchor(a, view, 1))}
+                  aria-label="Próximo período"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" onClick={() => setAnchor(new Date())}>
+                  Hoje
+                </Button>
+              </div>
 
-            {/* Navigation */}
-            <div className="flex items-center gap-1">
-              <Button
-                size="icon"
-                variant="outline"
-                onClick={() => setAnchor((a) => shiftAnchor(a, view, -1))}
-                aria-label="Período anterior"
-              >
-                <ChevronLeft className="h-4 w-4" />
+              <Button variant="outline" onClick={() => setExportOpen(true)}>
+                <Download className="h-4 w-4" /> Exportar
               </Button>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="gap-2">
-                    <CalendarRange className="h-4 w-4" />
-                    Ir para
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="end">
-                  <Calendar
-                    mode="single"
-                    selected={anchor}
-                    onSelect={(d) => d && setAnchor(d)}
-                    locale={undefined}
-                    className={cn("p-3 pointer-events-auto")}
-                  />
-                </PopoverContent>
-              </Popover>
-              <Button
-                size="icon"
-                variant="outline"
-                onClick={() => setAnchor((a) => shiftAnchor(a, view, 1))}
-                aria-label="Próximo período"
-              >
-                <ChevronRight className="h-4 w-4" />
+
+              <OcorrenciasButton
+                count={ocorrenciasAbertas.length}
+                onClick={() => setPainelOpen(true)}
+              />
+
+              <Button onClick={() => setModal({ mode: "create", pessoaId: "", data: ISO(anchor) })}>
+                <Plus className="h-4 w-4" /> Nova alocação
               </Button>
-              <Button variant="ghost" onClick={() => setAnchor(new Date())}>
-                Hoje
-              </Button>
-            </div>
-
-            <Button variant="outline" onClick={() => setExportOpen(true)}>
-              <Download className="h-4 w-4" /> Exportar
-            </Button>
-
-            <OcorrenciasButton
-              count={ocorrenciasAbertas.length}
-              onClick={() => setPainelOpen(true)}
-            />
-
-
-
-            <Button onClick={() => setModal({ mode: "create", pessoaId: "", data: ISO(anchor) })}>
-              <Plus className="h-4 w-4" /> Nova alocação
-            </Button>
-
-          </div>
-        </div>
+            </>
+          }
+        />
 
         {/* Filters row */}
         <div className="mt-3 flex flex-wrap items-center gap-2">
