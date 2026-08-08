@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { CalendarHeader } from "@/components/calendar-header";
 import {
   Dialog,
   DialogContent,
@@ -355,83 +356,74 @@ function PlanejamentoPage() {
   return (
     <div className="flex h-[100dvh] flex-col">
       {/* Toolbar */}
-      <div className="border-b bg-card/50 px-4 py-3 sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <SidebarTrigger className="hidden md:flex" />
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent text-accent-foreground">
-              <CalendarCheck className="h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="font-display text-lg font-bold leading-tight tracking-tight">
-                Planejamento Macro
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                {rangeLabel(anchor, view)}
-              </p>
-            </div>
-          </div>
+      <CalendarHeader
+          title="Planejamento Macro"
+          rangeLabel={rangeLabel(anchor, view)}
+          icon={<CalendarCheck className="h-5 w-5" />}
+          prefix={<SidebarTrigger className="hidden md:flex" />}
+          actions={
+            <>
+              <div className="flex rounded-lg border bg-background p-0.5">
+                {(["Diário", "Semanal", "Mensal"] as ViewMode[]).map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => setView(v)}
+                    className={cn(
+                      "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                      view === v
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex rounded-lg border bg-background p-0.5">
-              {(["Diário", "Semanal", "Mensal"] as ViewMode[]).map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setView(v)}
-                  className={cn(
-                    "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                    view === v
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
+              <div className="flex items-center gap-1">
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={() => setAnchor((a) => shiftAnchor(a, view, -1))}
+                  aria-label="Período anterior"
                 >
-                  {v}
-                </button>
-              ))}
-            </div>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="gap-2">
+                      <CalendarRange className="h-4 w-4" />
+                      Ir para
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="end">
+                    <Calendar
+                      mode="single"
+                      selected={anchor}
+                      onSelect={(d) => d && setAnchor(d)}
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={() => setAnchor((a) => shiftAnchor(a, view, 1))}
+                  aria-label="Próximo período"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" onClick={() => setAnchor(new Date())}>
+                  Hoje
+                </Button>
+              </div>
+            </>
+          }
+        />
 
-            <div className="flex items-center gap-1">
-              <Button
-                size="icon"
-                variant="outline"
-                onClick={() => setAnchor((a) => shiftAnchor(a, view, -1))}
-                aria-label="Período anterior"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="gap-2">
-                    <CalendarRange className="h-4 w-4" />
-                    Ir para
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="end">
-                  <Calendar
-                    mode="single"
-                    selected={anchor}
-                    onSelect={(d) => d && setAnchor(d)}
-                    className={cn("p-3 pointer-events-auto")}
-                  />
-                </PopoverContent>
-              </Popover>
-              <Button
-                size="icon"
-                variant="outline"
-                onClick={() => setAnchor((a) => shiftAnchor(a, view, 1))}
-                aria-label="Próximo período"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" onClick={() => setAnchor(new Date())}>
-                Hoje
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+        <div className="border-b bg-card/50 px-4 py-3 sm:px-6">
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-2">
           <div className="relative w-full max-w-xs">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input

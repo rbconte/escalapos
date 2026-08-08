@@ -7,6 +7,7 @@ import {
 import { toast } from "sonner";
 
 import { PageShell } from "@/components/page-shell";
+import { CalendarHeader } from "@/components/calendar-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -852,32 +853,36 @@ function CalendarioAnual({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={() => shift(-1)} aria-label="Anterior">
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <div className="min-w-[180px] text-center text-sm font-semibold capitalize">
-            {modo === "anual" ? anoSel : `${monthLong(mesSel)} de ${anoSel}`}
-          </div>
-          <Button variant="outline" size="icon" onClick={() => shift(1)} aria-label="Próximo">
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => { setAnoSel(new Date().getFullYear()); setMesSel(new Date().getMonth()); }}
-          >
-            Hoje
-          </Button>
-        </div>
-        <Tabs value={modo} onValueChange={(v) => setModo(v as "anual" | "mensal")}>
-          <TabsList>
-            <TabsTrigger value="mensal">Mensal</TabsTrigger>
-            <TabsTrigger value="anual">Anual</TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
+      <CalendarHeader
+        title="Calendário de Férias"
+        rangeLabel={modo === "anual" ? String(anoSel) : `${monthLong(mesSel)} de ${anoSel}`}
+        icon={<CalendarHeart className="h-5 w-5" />}
+        actions={
+          <>
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="icon" onClick={() => shift(-1)} aria-label="Anterior">
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="icon" onClick={() => shift(1)} aria-label="Próximo">
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setAnoSel(new Date().getFullYear()); setMesSel(new Date().getMonth()); }}
+              >
+                Hoje
+              </Button>
+            </div>
+            <Tabs value={modo} onValueChange={(v) => setModo(v as "anual" | "mensal")}>
+              <TabsList>
+                <TabsTrigger value="mensal">Mensal</TabsTrigger>
+                <TabsTrigger value="anual">Anual</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </>
+        }
+      />
 
       {modo === "anual" ? (
         <div className="overflow-x-auto rounded-xl border bg-card shadow-soft">
