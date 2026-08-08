@@ -475,8 +475,7 @@ function EscalaPage() {
   return (
     <div className="flex h-[100dvh] flex-col">
       {/* Toolbar */}
-      <div className="border-b bg-card/50 px-4 py-3 sm:px-6">
-        <CalendarHeader
+      <CalendarHeader
           title="Escala Operacional"
           rangeLabel={rangeLabel(anchor, view)}
           icon={<CalendarRange className="h-5 w-5" />}
