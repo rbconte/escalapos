@@ -19,9 +19,9 @@ export function CalendarHeader({
 }: CalendarHeaderProps) {
   const subtitle = description ?? rangeLabel;
   return (
-    <div className="border-b bg-card/50 px-4 py-3 sm:px-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
+    <div className="flex h-[68px] shrink-0 items-center border-b bg-card/50 px-4 sm:px-6">
+      <div className="flex w-full items-center justify-between gap-3 overflow-x-auto scroll-thin">
+        <div className="flex shrink-0 items-center gap-3">
           {prefix}
           {icon && (
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-foreground">
@@ -33,12 +33,12 @@ export function CalendarHeader({
               {title}
             </h1>
             {subtitle && (
-              <p className="text-sm text-muted-foreground">{subtitle}</p>
+              <p className="truncate text-sm text-muted-foreground">{subtitle}</p>
             )}
           </div>
         </div>
         {actions && (
-          <div className="flex flex-wrap items-center gap-2">{actions}</div>
+          <div className="flex shrink-0 items-center gap-2">{actions}</div>
         )}
       </div>
     </div>
