@@ -556,10 +556,10 @@ function EscalaPage() {
           }
         />
 
-        <div className="border-b bg-card/50 px-4 py-3 sm:px-6">
+        <div className="flex h-[60px] shrink-0 items-center border-b bg-card/50 px-4 sm:px-6">
           {/* Filters row */}
-          <div className="flex flex-wrap items-center gap-2">
-          <div className="relative w-full max-w-xs">
+          <div className="flex w-full items-center gap-2 overflow-x-auto scroll-thin">
+          <div className="relative w-full max-w-xs shrink-0">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Buscar colaborador, programa, ilha..."
