@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   useMutation,
   useQuery,
@@ -12,7 +12,9 @@ import {
   CalendarRange,
   ChevronLeft,
   ChevronRight,
+  Download,
   Filter,
+  Plus,
   Search,
   X,
 } from "lucide-react";
@@ -46,9 +48,16 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { invalidateOperacional, limparProjecoesDeEscalas, sincronizarFeriasDeEscalas } from "@/lib/sync";
 
+import { ExportEscalaModal } from "@/components/escala/export-modal";
+import {
+  OcorrenciasButton,
+  OcorrenciasPanel,
+} from "@/components/escala/ocorrencias-panel";
 import {
   conteudosQuery,
   escalasQuery,
+  ilhasQuery,
+  ocorrenciasQuery,
   pessoasQuery,
   programaNecessidadesQuery,
   programasQuery,
@@ -90,6 +99,8 @@ export const Route = createFileRoute("/planejamento")({
     context.queryClient.ensureQueryData(programasQuery());
     context.queryClient.ensureQueryData(conteudosQuery());
     context.queryClient.ensureQueryData(programaNecessidadesQuery());
+    context.queryClient.ensureQueryData(ilhasQuery());
+    context.queryClient.ensureQueryData(ocorrenciasQuery());
   },
   component: PlanejamentoPage,
 });
@@ -102,6 +113,8 @@ function PlanejamentoPage() {
   const { data: programas } = useSuspenseQuery(programasQuery());
   const { data: conteudos } = useSuspenseQuery(conteudosQuery());
   const { data: necessidades } = useSuspenseQuery(programaNecessidadesQuery());
+  const { data: ilhas } = useSuspenseQuery(ilhasQuery());
+  const { data: ocorrencias } = useSuspenseQuery(ocorrenciasQuery());
   const qc = useQueryClient();
 
   const [view, setView] = useState<ViewMode>("Semanal");
@@ -110,10 +123,26 @@ function PlanejamentoPage() {
   const [fConteudo, setFConteudo] = useState(ALL);
   const [fPrograma, setFPrograma] = useState(ALL);
   const [fPessoa, setFPessoa] = useState(ALL);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportRange, setExportRange] = useState<{ start: Date; end: Date } | null>(null);
+  const [painelOpen, setPainelOpen] = useState(false);
+  const [novaOpen, setNovaOpen] = useState(false);
 
   const { start, end } = rangeForView(anchor, view);
   const days = useMemo(() => daysInRange(start, end), [start, end]);
   const { data: escalas = [] } = useQuery(escalasQuery(ISO(start), ISO(end)));
+
+  const exportFrom = exportRange ? ISO(exportRange.start) : ISO(start);
+  const exportTo = exportRange ? ISO(exportRange.end) : ISO(end);
+  const { data: exportEscalas = [] } = useQuery({
+    ...escalasQuery(exportFrom, exportTo),
+    enabled: exportOpen,
+  });
+
+  const ocorrenciasAbertas = useMemo(
+    () => ocorrencias.filter((o) => o.status === "Aberta"),
+    [ocorrencias],
+  );
 
   // Mutations -----------------------------------------------------------
   const setCell = useMutation({
@@ -417,6 +446,19 @@ function PlanejamentoPage() {
                   Hoje
                 </Button>
               </div>
+
+              <Button variant="outline" onClick={() => setExportOpen(true)}>
+                <Download className="h-4 w-4" /> Exportar
+              </Button>
+
+              <OcorrenciasButton
+                count={ocorrenciasAbertas.length}
+                onClick={() => setPainelOpen(true)}
+              />
+
+              <Button onClick={() => setNovaOpen(true)}>
+                <Plus className="h-4 w-4" /> Nova alocação
+              </Button>
             </>
           }
         />
@@ -618,6 +660,42 @@ function PlanejamentoPage() {
 
       {/* Legend */}
       <Legenda conteudos={conteudos} />
+
+      <OcorrenciasPanel
+        open={painelOpen}
+        onOpenChange={setPainelOpen}
+        ocorrencias={ocorrencias}
+      />
+
+      <ExportEscalaModal
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        inicio={start}
+        fim={end}
+        pessoas={pessoas}
+        programas={programas}
+        ilhas={ilhas}
+        conteudos={conteudos}
+        escalas={exportEscalas}
+        initialFilters={{
+          conteudos: fConteudo !== ALL ? [fConteudo] : [],
+          programas: fPrograma !== ALL ? [fPrograma] : [],
+          ilhas: [],
+          pessoas: fPessoa !== ALL ? [fPessoa] : [],
+        }}
+        onRangeChange={(a, b) => setExportRange({ start: a, end: b })}
+      />
+
+      <AlocacaoDialog
+        open={novaOpen}
+        onOpenChange={setNovaOpen}
+        iso={ISO(anchor)}
+        programas={programas}
+        pessoas={pessoasAtivas}
+        onSubmit={(pessoaId, programaId, status, startISO, endISO) =>
+          setRange.mutate({ pessoaId, startISO, endISO, programaId, status })
+        }
+      />
     </div>
   );
 }
@@ -643,13 +721,70 @@ function CellPicker({
   ) => void;
   onClear: () => void;
 }) {
-  const situacoesEspeciais = useSituacoesEspeciais();
   const [open, setOpen] = useState(false);
-  const [conteudoId, setConteudoId] = useState<string>(ALL);
-  const [programaId, setProgramaId] = useState<string>(
-    cell?.programa_id ?? "",
+  const trigger = cell ? <CellChip escala={cell} /> : <EmptyCellButton />;
+
+  return (
+    <>
+      <button
+        type="button"
+        className="block w-full"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(true);
+        }}
+      >
+        {trigger}
+      </button>
+
+      <AlocacaoDialog
+        open={open}
+        onOpenChange={setOpen}
+        iso={iso}
+        cell={cell}
+        programas={programas}
+        onSubmit={(_pessoaId, programaId, status, startISO, endISO) =>
+          onPickRange(programaId, status, startISO, endISO)
+        }
+        onClear={onClear}
+      />
+    </>
   );
-  const [status, setStatus] = useState<string>(cell?.status ?? "Trabalhando");
+}
+
+// =============== Allocation dialog (shared) ===============
+
+function AlocacaoDialog({
+  open,
+  onOpenChange,
+  iso,
+  cell,
+  programas,
+  pessoas,
+  onSubmit,
+  onClear,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  iso: string;
+  cell?: EscalaCompleta | undefined;
+  programas: ProgramaComConteudo[];
+  /** When provided, the dialog also asks which person to allocate. */
+  pessoas?: PessoaComFuncao[];
+  onSubmit: (
+    pessoaId: string,
+    programaId: string | null,
+    status: string,
+    startISO: string,
+    endISO: string,
+  ) => void;
+  onClear?: () => void;
+}) {
+  const situacoesEspeciais = useSituacoesEspeciais();
+  const [pessoaId, setPessoaId] = useState<string>("");
+  const [conteudoId, setConteudoId] = useState<string>(ALL);
+  const [programaId, setProgramaId] = useState<string>("");
+  const [status, setStatus] = useState<string>("Trabalhando");
   const [startISO, setStartISO] = useState(iso);
   const [dias, setDias] = useState<number>(1);
 
@@ -671,15 +806,16 @@ function CellPicker({
 
   const isEspecial = status !== "Trabalhando";
 
-  function reset() {
-    setConteudoId(
-      cell?.programa?.conteudo?.id ?? ALL,
-    );
+  // Reset form whenever the dialog opens.
+  useEffect(() => {
+    if (!open) return;
+    setPessoaId(cell?.pessoa_id ?? "");
+    setConteudoId(cell?.programa?.conteudo?.id ?? ALL);
     setProgramaId(cell?.programa_id ?? "");
     setStatus(cell?.status ?? "Trabalhando");
     setStartISO(iso);
     setDias(1);
-  }
+  }, [open, cell, iso]);
 
   function endFromDias() {
     const d = new Date(startISO + "T00:00:00");
@@ -687,173 +823,179 @@ function CellPicker({
     return ISO(d);
   }
 
-  const trigger = cell ? <CellChip escala={cell} /> : <EmptyCellButton />;
-
   return (
-    <>
-      <button
-        type="button"
-        className="block w-full"
-        onClick={(e) => {
-          e.stopPropagation();
-          reset();
-          setOpen(true);
-        }}
-      >
-        {trigger}
-      </button>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{pessoas ? "Nova alocação" : "Alocação"}</DialogTitle>
+          <DialogDescription>
+            Defina conteúdo, produto, período e situação da alocação.
+          </DialogDescription>
+        </DialogHeader>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Alocação</DialogTitle>
-            <DialogDescription>
-              Defina conteúdo, produto, período e situação da alocação.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Situação
-              </label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Trabalhando">Trabalhando</SelectItem>
-                  {situacoesEspeciais.map((s) => (
-                    <SelectItem key={s.id} value={s.nome}>
-                      {s.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Conteúdo
-              </label>
-              <Select
-                value={conteudoId}
-                onValueChange={(v) => {
-                  setConteudoId(v);
-                  setProgramaId("");
-                }}
-                disabled={isEspecial}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Todos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL}>Todos os conteúdos</SelectItem>
-                  {conteudos.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
+        <div className="grid gap-4 sm:grid-cols-2">
+          {pessoas && (
             <div className="space-y-1.5 sm:col-span-2">
               <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Produto
+                Colaborador
               </label>
-              <Select
-                value={programaId}
-                onValueChange={setProgramaId}
-                disabled={isEspecial}
-              >
+              <Select value={pessoaId} onValueChange={setPessoaId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione o produto" />
+                  <SelectValue placeholder="Selecione o colaborador" />
                 </SelectTrigger>
                 <SelectContent>
-                  {programasFiltrados.map((pr) => (
-                    <SelectItem key={pr.id} value={pr.id}>
-                      {pr.nome}
-                      {pr.sigla ? ` (${pr.sigla})` : ""}
+                  {pessoas.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.nome}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {isEspecial && (
-                <p className="text-[11px] text-muted-foreground">
-                  Situações especiais não exigem produto.
-                </p>
-              )}
             </div>
+          )}
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Data de início
-              </label>
-              <Input
-                type="date"
-                value={startISO}
-                onChange={(e) => setStartISO(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Quantidade de dias
-              </label>
-              <Input
-                type="number"
-                min={1}
-                value={dias}
-                onChange={(e) => setDias(Math.max(1, Number(e.target.value) || 1))}
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Término em {endFromDias().split("-").reverse().join("/")}
-              </p>
-            </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Situação
+            </label>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Trabalhando">Trabalhando</SelectItem>
+                {situacoesEspeciais.map((s) => (
+                  <SelectItem key={s.id} value={s.nome}>
+                    {s.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          <DialogFooter className="gap-2 sm:justify-between">
-            {cell ? (
-              <Button
-                variant="ghost"
-                className="text-destructive"
-                onClick={() => {
-                  onClear();
-                  setOpen(false);
-                }}
-              >
-                <X className="h-3.5 w-3.5" /> Limpar célula
-              </Button>
-            ) : (
-              <span />
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Conteúdo
+            </label>
+            <Select
+              value={conteudoId}
+              onValueChange={setConteudoId}
+              disabled={isEspecial}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todos</SelectItem>
+                {conteudos.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5 sm:col-span-2">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Produto
+            </label>
+            <Select
+              value={programaId}
+              onValueChange={setProgramaId}
+              disabled={isEspecial}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o produto" />
+              </SelectTrigger>
+              <SelectContent>
+                {programasFiltrados.map((pr) => (
+                  <SelectItem key={pr.id} value={pr.id}>
+                    {pr.nome}
+                    {pr.sigla ? ` (${pr.sigla})` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {isEspecial && (
+              <p className="text-[11px] text-muted-foreground">
+                Situações especiais não exigem produto.
+              </p>
             )}
-            <div className="flex gap-2">
-              <Button variant="ghost" onClick={() => setOpen(false)}>
-                Cancelar
-              </Button>
-              <Button
-                onClick={() => {
-                  if (!isEspecial && !programaId) {
-                    toast.error("Selecione um produto.");
-                    return;
-                  }
-                  onPickRange(
-                    isEspecial ? null : programaId,
-                    status,
-                    startISO,
-                    endFromDias(),
-                  );
-                  setOpen(false);
-                }}
-              >
-                Confirmar
-              </Button>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Data de início
+            </label>
+            <Input
+              type="date"
+              value={startISO}
+              onChange={(e) => setStartISO(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Quantidade de dias
+            </label>
+            <Input
+              type="number"
+              min={1}
+              value={dias}
+              onChange={(e) => setDias(Math.max(1, Number(e.target.value) || 1))}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Término em {endFromDias().split("-").reverse().join("/")}
+            </p>
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2 sm:justify-between">
+          {cell && onClear ? (
+            <Button
+              variant="ghost"
+              className="text-destructive"
+              onClick={() => {
+                onClear();
+                onOpenChange(false);
+              }}
+            >
+              <X className="h-3.5 w-3.5" /> Limpar célula
+            </Button>
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                if (pessoas && !pessoaId) {
+                  toast.error("Selecione um colaborador.");
+                  return;
+                }
+                if (!isEspecial && !programaId) {
+                  toast.error("Selecione um produto.");
+                  return;
+                }
+                onSubmit(
+                  pessoaId,
+                  isEspecial ? null : programaId,
+                  status,
+                  startISO,
+                  endFromDias(),
+                );
+                onOpenChange(false);
+              }}
+            >
+              Confirmar
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
