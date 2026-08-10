@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   useMutation,
   useQuery,
@@ -12,7 +12,9 @@ import {
   CalendarRange,
   ChevronLeft,
   ChevronRight,
+  Download,
   Filter,
+  Plus,
   Search,
   X,
 } from "lucide-react";
@@ -46,9 +48,16 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { invalidateOperacional, limparProjecoesDeEscalas, sincronizarFeriasDeEscalas } from "@/lib/sync";
 
+import { ExportEscalaModal } from "@/components/escala/export-modal";
+import {
+  OcorrenciasButton,
+  OcorrenciasPanel,
+} from "@/components/escala/ocorrencias-panel";
 import {
   conteudosQuery,
   escalasQuery,
+  ilhasQuery,
+  ocorrenciasQuery,
   pessoasQuery,
   programaNecessidadesQuery,
   programasQuery,
@@ -90,6 +99,8 @@ export const Route = createFileRoute("/planejamento")({
     context.queryClient.ensureQueryData(programasQuery());
     context.queryClient.ensureQueryData(conteudosQuery());
     context.queryClient.ensureQueryData(programaNecessidadesQuery());
+    context.queryClient.ensureQueryData(ilhasQuery());
+    context.queryClient.ensureQueryData(ocorrenciasQuery());
   },
   component: PlanejamentoPage,
 });
@@ -102,6 +113,8 @@ function PlanejamentoPage() {
   const { data: programas } = useSuspenseQuery(programasQuery());
   const { data: conteudos } = useSuspenseQuery(conteudosQuery());
   const { data: necessidades } = useSuspenseQuery(programaNecessidadesQuery());
+  const { data: ilhas } = useSuspenseQuery(ilhasQuery());
+  const { data: ocorrencias } = useSuspenseQuery(ocorrenciasQuery());
   const qc = useQueryClient();
 
   const [view, setView] = useState<ViewMode>("Semanal");
@@ -110,10 +123,26 @@ function PlanejamentoPage() {
   const [fConteudo, setFConteudo] = useState(ALL);
   const [fPrograma, setFPrograma] = useState(ALL);
   const [fPessoa, setFPessoa] = useState(ALL);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportRange, setExportRange] = useState<{ start: Date; end: Date } | null>(null);
+  const [painelOpen, setPainelOpen] = useState(false);
+  const [novaOpen, setNovaOpen] = useState(false);
 
   const { start, end } = rangeForView(anchor, view);
   const days = useMemo(() => daysInRange(start, end), [start, end]);
   const { data: escalas = [] } = useQuery(escalasQuery(ISO(start), ISO(end)));
+
+  const exportFrom = exportRange ? ISO(exportRange.start) : ISO(start);
+  const exportTo = exportRange ? ISO(exportRange.end) : ISO(end);
+  const { data: exportEscalas = [] } = useQuery({
+    ...escalasQuery(exportFrom, exportTo),
+    enabled: exportOpen,
+  });
+
+  const ocorrenciasAbertas = useMemo(
+    () => ocorrencias.filter((o) => o.status === "Aberta"),
+    [ocorrencias],
+  );
 
   // Mutations -----------------------------------------------------------
   const setCell = useMutation({
@@ -417,6 +446,19 @@ function PlanejamentoPage() {
                   Hoje
                 </Button>
               </div>
+
+              <Button variant="outline" onClick={() => setExportOpen(true)}>
+                <Download className="h-4 w-4" /> Exportar
+              </Button>
+
+              <OcorrenciasButton
+                count={ocorrenciasAbertas.length}
+                onClick={() => setPainelOpen(true)}
+              />
+
+              <Button onClick={() => setNovaOpen(true)}>
+                <Plus className="h-4 w-4" /> Nova alocação
+              </Button>
             </>
           }
         />
@@ -618,6 +660,42 @@ function PlanejamentoPage() {
 
       {/* Legend */}
       <Legenda conteudos={conteudos} />
+
+      <OcorrenciasPanel
+        open={painelOpen}
+        onOpenChange={setPainelOpen}
+        ocorrencias={ocorrencias}
+      />
+
+      <ExportEscalaModal
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        inicio={start}
+        fim={end}
+        pessoas={pessoas}
+        programas={programas}
+        ilhas={ilhas}
+        conteudos={conteudos}
+        escalas={exportEscalas}
+        initialFilters={{
+          conteudos: fConteudo !== ALL ? [fConteudo] : [],
+          programas: fPrograma !== ALL ? [fPrograma] : [],
+          ilhas: [],
+          pessoas: fPessoa !== ALL ? [fPessoa] : [],
+        }}
+        onRangeChange={(a, b) => setExportRange({ start: a, end: b })}
+      />
+
+      <AlocacaoDialog
+        open={novaOpen}
+        onOpenChange={setNovaOpen}
+        iso={ISO(anchor)}
+        programas={programas}
+        pessoas={pessoasAtivas}
+        onSubmit={(pessoaId, programaId, status, startISO, endISO) =>
+          setRange.mutate({ pessoaId, startISO, endISO, programaId, status })
+        }
+      />
     </div>
   );
 }
