@@ -20,6 +20,7 @@ import { Route as IlhasRouteImport } from './routes/ilhas'
 import { Route as GestaoRouteImport } from './routes/gestao'
 import { Route as FuncoesRouteImport } from './routes/funcoes'
 import { Route as FeriasRouteImport } from './routes/ferias'
+import { Route as FeriadosPlantoesRouteImport } from './routes/feriados-plantoes'
 import { Route as DistribuicaoRouteImport } from './routes/distribuicao'
 import { Route as ConteudosRouteImport } from './routes/conteudos'
 import { Route as IndexRouteImport } from './routes/index'
@@ -84,6 +85,11 @@ const FeriasRoute = FeriasRouteImport.update({
   path: '/ferias',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FeriadosPlantoesRoute = FeriadosPlantoesRouteImport.update({
+  id: '/feriados-plantoes',
+  path: '/feriados-plantoes',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DistribuicaoRoute = DistribuicaoRouteImport.update({
   id: '/distribuicao',
   path: '/distribuicao',
@@ -129,6 +135,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/conteudos': typeof ConteudosRoute
   '/distribuicao': typeof DistribuicaoRoute
+  '/feriados-plantoes': typeof FeriadosPlantoesRoute
   '/ferias': typeof FeriasRoute
   '/funcoes': typeof FuncoesRoute
   '/gestao': typeof GestaoRouteWithChildren
@@ -150,6 +157,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/conteudos': typeof ConteudosRoute
   '/distribuicao': typeof DistribuicaoRoute
+  '/feriados-plantoes': typeof FeriadosPlantoesRoute
   '/ferias': typeof FeriasRoute
   '/funcoes': typeof FuncoesRoute
   '/ilhas': typeof IlhasRoute
@@ -171,6 +179,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/conteudos': typeof ConteudosRoute
   '/distribuicao': typeof DistribuicaoRoute
+  '/feriados-plantoes': typeof FeriadosPlantoesRoute
   '/ferias': typeof FeriasRoute
   '/funcoes': typeof FuncoesRoute
   '/gestao': typeof GestaoRouteWithChildren
@@ -194,6 +203,7 @@ export interface FileRouteTypes {
     | '/'
     | '/conteudos'
     | '/distribuicao'
+    | '/feriados-plantoes'
     | '/ferias'
     | '/funcoes'
     | '/gestao'
@@ -215,6 +225,7 @@ export interface FileRouteTypes {
     | '/'
     | '/conteudos'
     | '/distribuicao'
+    | '/feriados-plantoes'
     | '/ferias'
     | '/funcoes'
     | '/ilhas'
@@ -235,6 +246,7 @@ export interface FileRouteTypes {
     | '/'
     | '/conteudos'
     | '/distribuicao'
+    | '/feriados-plantoes'
     | '/ferias'
     | '/funcoes'
     | '/gestao'
@@ -257,6 +269,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ConteudosRoute: typeof ConteudosRoute
   DistribuicaoRoute: typeof DistribuicaoRoute
+  FeriadosPlantoesRoute: typeof FeriadosPlantoesRoute
   FeriasRoute: typeof FeriasRoute
   FuncoesRoute: typeof FuncoesRoute
   GestaoRoute: typeof GestaoRouteWithChildren
@@ -349,6 +362,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FeriasRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/feriados-plantoes': {
+      id: '/feriados-plantoes'
+      path: '/feriados-plantoes'
+      fullPath: '/feriados-plantoes'
+      preLoaderRoute: typeof FeriadosPlantoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/distribuicao': {
       id: '/distribuicao'
       path: '/distribuicao'
@@ -431,6 +451,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ConteudosRoute: ConteudosRoute,
   DistribuicaoRoute: DistribuicaoRoute,
+  FeriadosPlantoesRoute: FeriadosPlantoesRoute,
   FeriasRoute: FeriasRoute,
   FuncoesRoute: FuncoesRoute,
   GestaoRoute: GestaoRouteWithChildren,

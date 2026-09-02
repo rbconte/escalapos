@@ -154,6 +154,102 @@ export type Database = {
           },
         ]
       }
+      feriado_escalas: {
+        Row: {
+          created_at: string
+          data: string
+          grupo_id: string | null
+          hora_fim: string | null
+          hora_inicio: string | null
+          id: string
+          notas: string | null
+          pessoa_id: string
+          situacao: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          data: string
+          grupo_id?: string | null
+          hora_fim?: string | null
+          hora_inicio?: string | null
+          id?: string
+          notas?: string | null
+          pessoa_id: string
+          situacao?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          data?: string
+          grupo_id?: string | null
+          hora_fim?: string | null
+          hora_inicio?: string | null
+          id?: string
+          notas?: string | null
+          pessoa_id?: string
+          situacao?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feriado_escalas_grupo_id_fkey"
+            columns: ["grupo_id"]
+            isOneToOne: false
+            referencedRelation: "grupos_plantao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feriado_escalas_pessoa_id_fkey"
+            columns: ["pessoa_id"]
+            isOneToOne: false
+            referencedRelation: "pessoas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feriados_config: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          customizado: boolean
+          data: string
+          escopo: string
+          id: string
+          nome: string
+          observacao: string | null
+          plantao_fim: string | null
+          plantao_inicio: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          customizado?: boolean
+          data: string
+          escopo?: string
+          id?: string
+          nome: string
+          observacao?: string | null
+          plantao_fim?: string | null
+          plantao_inicio?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          customizado?: boolean
+          data?: string
+          escopo?: string
+          id?: string
+          nome?: string
+          observacao?: string | null
+          plantao_fim?: string | null
+          plantao_inicio?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ferias: {
         Row: {
           created_at: string
@@ -225,6 +321,81 @@ export type Database = {
           created_at?: string
           id?: string
           nome?: string
+        }
+        Relationships: []
+      }
+      grupo_plantao_membros: {
+        Row: {
+          created_at: string
+          grupo_id: string
+          id: string
+          papel: string | null
+          pessoa_id: string
+        }
+        Insert: {
+          created_at?: string
+          grupo_id: string
+          id?: string
+          papel?: string | null
+          pessoa_id: string
+        }
+        Update: {
+          created_at?: string
+          grupo_id?: string
+          id?: string
+          papel?: string | null
+          pessoa_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grupo_plantao_membros_grupo_id_fkey"
+            columns: ["grupo_id"]
+            isOneToOne: false
+            referencedRelation: "grupos_plantao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grupo_plantao_membros_pessoa_id_fkey"
+            columns: ["pessoa_id"]
+            isOneToOne: false
+            referencedRelation: "pessoas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      grupos_plantao: {
+        Row: {
+          ativo: boolean
+          cor: string
+          created_at: string
+          descricao: string | null
+          id: string
+          nome: string
+          ordem: number
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          cor?: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome: string
+          ordem?: number
+          tipo?: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          cor?: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome?: string
+          ordem?: number
+          tipo?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -710,12 +881,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -739,11 +910,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -764,11 +935,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -789,11 +960,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -806,11 +977,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
