@@ -154,6 +154,102 @@ export type Database = {
           },
         ]
       }
+      feriado_escalas: {
+        Row: {
+          created_at: string
+          data: string
+          grupo_id: string | null
+          hora_fim: string | null
+          hora_inicio: string | null
+          id: string
+          notas: string | null
+          pessoa_id: string
+          situacao: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          data: string
+          grupo_id?: string | null
+          hora_fim?: string | null
+          hora_inicio?: string | null
+          id?: string
+          notas?: string | null
+          pessoa_id: string
+          situacao?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          data?: string
+          grupo_id?: string | null
+          hora_fim?: string | null
+          hora_inicio?: string | null
+          id?: string
+          notas?: string | null
+          pessoa_id?: string
+          situacao?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feriado_escalas_grupo_id_fkey"
+            columns: ["grupo_id"]
+            isOneToOne: false
+            referencedRelation: "grupos_plantao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feriado_escalas_pessoa_id_fkey"
+            columns: ["pessoa_id"]
+            isOneToOne: false
+            referencedRelation: "pessoas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feriados_config: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          customizado: boolean
+          data: string
+          escopo: string
+          id: string
+          nome: string
+          observacao: string | null
+          plantao_fim: string | null
+          plantao_inicio: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          customizado?: boolean
+          data: string
+          escopo?: string
+          id?: string
+          nome: string
+          observacao?: string | null
+          plantao_fim?: string | null
+          plantao_inicio?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          customizado?: boolean
+          data?: string
+          escopo?: string
+          id?: string
+          nome?: string
+          observacao?: string | null
+          plantao_fim?: string | null
+          plantao_inicio?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ferias: {
         Row: {
           created_at: string
@@ -225,6 +321,81 @@ export type Database = {
           created_at?: string
           id?: string
           nome?: string
+        }
+        Relationships: []
+      }
+      grupo_plantao_membros: {
+        Row: {
+          created_at: string
+          grupo_id: string
+          id: string
+          papel: string | null
+          pessoa_id: string
+        }
+        Insert: {
+          created_at?: string
+          grupo_id: string
+          id?: string
+          papel?: string | null
+          pessoa_id: string
+        }
+        Update: {
+          created_at?: string
+          grupo_id?: string
+          id?: string
+          papel?: string | null
+          pessoa_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grupo_plantao_membros_grupo_id_fkey"
+            columns: ["grupo_id"]
+            isOneToOne: false
+            referencedRelation: "grupos_plantao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grupo_plantao_membros_pessoa_id_fkey"
+            columns: ["pessoa_id"]
+            isOneToOne: false
+            referencedRelation: "pessoas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      grupos_plantao: {
+        Row: {
+          ativo: boolean
+          cor: string
+          created_at: string
+          descricao: string | null
+          id: string
+          nome: string
+          ordem: number
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          cor?: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome: string
+          ordem?: number
+          tipo?: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          cor?: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome?: string
+          ordem?: number
+          tipo?: string
+          updated_at?: string
         }
         Relationships: []
       }
