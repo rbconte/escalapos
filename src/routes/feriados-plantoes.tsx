@@ -226,16 +226,29 @@ function FeriadosPlantoesPage() {
   const [eOpen, setEOpen] = useState(false);
   const [eFeriado, setEFeriado] = useState<Feriado | null>(null);
   const [eData, setEData] = useState("");
-  const [ePessoa, setEPessoa] = useState("");
+  const [ePessoas, setEPessoas] = useState<string[]>([]);
   const [eGrupo, setEGrupo] = useState<string>("none");
   const [eSituacao, setESituacao] = useState<string>("Trabalha");
   const [eIni, setEIni] = useState("");
   const [eFim, setEFim] = useState("");
 
+  const membrosDoGrupo = (grupoId: string) =>
+    membros.filter((m) => m.grupo_id === grupoId).map((m) => m.pessoa_id);
+
+  /** Ao escolher um grupo, já traz automaticamente os colaboradores dele. */
+  function escolherGrupo(id: string) {
+    setEGrupo(id);
+    setEPessoas(id === "none" ? [] : membrosDoGrupo(id));
+  }
+
+  function togglePessoa(id: string, on: boolean) {
+    setEPessoas((prev) => (on ? [...new Set([...prev, id])] : prev.filter((x) => x !== id)));
+  }
+
   function openEscala(f: Feriado) {
     setEFeriado(f);
     setEData(f.plantaoInicio);
-    setEPessoa("");
+    setEPessoas([]);
     setEGrupo("none");
     setESituacao("Trabalha");
     setEIni("");
@@ -245,39 +258,59 @@ function FeriadosPlantoesPage() {
 
   const salvarEscala = useMutation({
     mutationFn: async () => {
-      if (!ePessoa) throw new Error("Selecione o colaborador.");
+      if (ePessoas.length === 0)
+        throw new Error("Selecione um grupo ou ao menos um colaborador.");
       const { error } = await supabase.from("feriado_escalas").upsert(
-        {
+        ePessoas.map((pessoa_id) => ({
           data: eData,
-          pessoa_id: ePessoa,
+          pessoa_id,
           grupo_id: eGrupo === "none" ? null : eGrupo,
           situacao: eSituacao,
           hora_inicio: eIni || null,
           hora_fim: eFim || null,
-        },
+        })),
         { onConflict: "data,pessoa_id" },
       );
       if (error) throw error;
+      // Folga no feriado reflete na Escala Operacional e no Planejamento Macro.
+      if (eSituacao === "Folga") {
+        await materializarSituacaoFeriado(ePessoas, [eData], "Folga");
+      } else {
+        await desmaterializarSituacaoFeriado(ePessoas, [eData], "Folga");
+      }
     },
     onSuccess: () => {
       invalidate();
+      invalidateOperacional(qc);
       setEOpen(false);
-      toast.success("Escala de feriado registrada.");
+      toast.success(
+        ePessoas.length > 1
+          ? `${ePessoas.length} colaboradores escalados.`
+          : "Escala de feriado registrada.",
+      );
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const removerEscala = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("feriado_escalas").delete().eq("id", id);
+    mutationFn: async (registro: FeriadoEscala) => {
+      const { error } = await supabase
+        .from("feriado_escalas")
+        .delete()
+        .eq("id", registro.id);
       if (error) throw error;
+      if (registro.situacao === "Folga") {
+        await desmaterializarSituacaoFeriado([registro.pessoa_id], [registro.data], "Folga");
+      }
     },
     onSuccess: () => {
       invalidate();
+      invalidateOperacional(qc);
       toast.success("Registro removido.");
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
 
   /* ------------------------------ grupo dialog ----------------------------- */
   const [gOpen, setGOpen] = useState(false);
