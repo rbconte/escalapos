@@ -3,6 +3,7 @@ import {
   BarChart3,
   Briefcase,
   CalendarCheck,
+  CalendarClock,
   CalendarHeart,
   CalendarRange,
   CalendarSearch,
@@ -33,6 +34,7 @@ import {
 const operacional = [
   { title: "Escala Operacional", url: "/", icon: CalendarRange, exact: true },
   { title: "Planejamento Macro", url: "/planejamento", icon: CalendarCheck },
+  { title: "Grupos de Feriados e Plantões", url: "/feriados-plantoes", icon: CalendarClock },
   { title: "Mapa de Ilhas", url: "/mapa-ilhas", icon: Map },
   { title: "Distribuição de Trabalho", url: "/distribuicao", icon: ClipboardList },
   { title: "Plano de Férias", url: "/ferias", icon: CalendarHeart },
