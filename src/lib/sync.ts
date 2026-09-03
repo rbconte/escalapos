@@ -421,7 +421,59 @@ export async function desmaterializarEscalaDeFerias(
   if (error) throw error;
 }
 
+/**
+ * Feriados/Plantões → Escala + Planejamento Macro.
+ * Materializa uma situação de feriado (ex.: "Folga") na escala operacional,
+ * que é a mesma fonte lida pelo Planejamento Macro.
+ */
+export async function materializarSituacaoFeriado(
+  pessoaIds: string[],
+  datas: string[],
+  status: string,
+) {
+  if (pessoaIds.length === 0 || datas.length === 0) return;
+  await limparProjecoesDeEscalas((q) => q.in("pessoa_id", pessoaIds).in("data", datas));
+  const { error: delErr } = await supabase
+    .from("escalas")
+    .delete()
+    .in("pessoa_id", pessoaIds)
+    .in("data", datas);
+  if (delErr) throw delErr;
+  const rows = pessoaIds.flatMap((pessoa_id) =>
+    datas.map((data) => ({
+      pessoa_id,
+      data,
+      programa_id: null,
+      ilha_id: null,
+      modalidade: "TV",
+      status,
+    })),
+  );
+  const { error } = await supabase.from("escalas").insert(rows);
+  if (error) throw error;
+}
+
+/** Remove da escala uma situação de feriado previamente materializada. */
+export async function desmaterializarSituacaoFeriado(
+  pessoaIds: string[],
+  datas: string[],
+  status: string,
+) {
+  if (pessoaIds.length === 0 || datas.length === 0) return;
+  await limparProjecoesDeEscalas((q) =>
+    q.in("pessoa_id", pessoaIds).in("data", datas).eq("status", status),
+  );
+  const { error } = await supabase
+    .from("escalas")
+    .delete()
+    .in("pessoa_id", pessoaIds)
+    .in("data", datas)
+    .eq("status", status);
+  if (error) throw error;
+}
+
 // ── Criação compartilhada (qualquer painel é porta de entrada) ─────────────
+
 
 export type NovaDemandaPlano = {
   ilha_id: string;
