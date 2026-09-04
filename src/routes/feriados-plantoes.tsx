@@ -48,11 +48,13 @@ import {
 } from "@/components/ui/table";
 
 import { supabase } from "@/integrations/supabase/client";
-import { pessoasQuery, todasFeriasQuery } from "@/lib/queries";
+import { ilhasQuery, pessoasQuery, programasQuery, todasFeriasQuery } from "@/lib/queries";
 import {
+  conflitosOperacionais,
   desmaterializarSituacaoFeriado,
   invalidateOperacional,
   materializarSituacaoFeriado,
+  type ConflitoOperacional,
 } from "@/lib/sync";
 import { PROGRAMA_CORES, contrastText, hexToSoftBg } from "@/lib/domain";
 import {
@@ -105,6 +107,8 @@ export const Route = createFileRoute("/feriados-plantoes")({
       context.queryClient.ensureQueryData(feriadoEscalasQuery()),
       context.queryClient.ensureQueryData(pessoasQuery()),
       context.queryClient.ensureQueryData(todasFeriasQuery()),
+      context.queryClient.ensureQueryData(ilhasQuery()),
+      context.queryClient.ensureQueryData(programasQuery()),
     ]);
   },
   component: FeriadosPlantoesPage,
@@ -132,6 +136,8 @@ function FeriadosPlantoesPage() {
   const { data: escalas } = useSuspenseQuery(feriadoEscalasQuery());
   const { data: pessoas } = useSuspenseQuery(pessoasQuery());
   const { data: ferias } = useSuspenseQuery(todasFeriasQuery());
+  const { data: ilhas } = useSuspenseQuery(ilhasQuery());
+  const { data: programas } = useSuspenseQuery(programasQuery());
 
   const nomePessoa = (id: string) =>
     pessoas.find((p) => p.id === id)?.nome ?? "—";
@@ -236,6 +242,14 @@ function FeriadosPlantoesPage() {
   const [eSituacao, setESituacao] = useState<string>("Trabalha");
   const [eIni, setEIni] = useState("");
   const [eFim, setEFim] = useState("");
+  const [eIlha, setEIlha] = useState<string>("none");
+  const [ePrograma, setEPrograma] = useState<string>("none");
+  const [conflitos, setConflitos] = useState<ConflitoOperacional[] | null>(null);
+  const [checando, setChecando] = useState(false);
+
+  /** Situação do feriado → status usado na escala/planejamento macro. */
+  const statusEscala = (situacao: string) =>
+    situacao === "Trabalha" ? "Trabalhando" : situacao;
 
   const membrosDoGrupo = (grupoId: string) =>
     membros.filter((m) => m.grupo_id === grupoId).map((m) => m.pessoa_id);
@@ -258,7 +272,31 @@ function FeriadosPlantoesPage() {
     setESituacao("Trabalha");
     setEIni("");
     setEFim("");
+    setEIlha("none");
+    setEPrograma("none");
+    setConflitos(null);
     setEOpen(true);
+  }
+
+  /** Verifica alocações existentes antes de gravar; se houver, pede confirmação. */
+  async function tentarSalvar() {
+    if (ePessoas.length === 0) {
+      toast.error("Selecione um grupo ou ao menos um colaborador.");
+      return;
+    }
+    setChecando(true);
+    try {
+      const achados = await conflitosOperacionais(ePessoas, [eData]);
+      if (achados.length > 0) {
+        setConflitos(achados);
+        return;
+      }
+      salvarEscala.mutate();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setChecando(false);
+    }
   }
 
   const salvarEscala = useMutation({
@@ -277,25 +315,31 @@ function FeriadosPlantoesPage() {
         { onConflict: "data,pessoa_id" },
       );
       if (error) throw error;
-      // Folga no feriado reflete na Escala Operacional e no Planejamento Macro.
-      if (eSituacao === "Folga") {
-        await materializarSituacaoFeriado(ePessoas, [eData], "Folga");
-      } else {
-        await desmaterializarSituacaoFeriado(ePessoas, [eData], "Folga");
-      }
+      // Toda situação de feriado reflete na Escala, Planejamento Macro e — com
+      // ilha informada — no Mapa de Ilhas e na Distribuição de Trabalho.
+      const programaId = ePrograma === "none" ? null : ePrograma;
+      await materializarSituacaoFeriado(ePessoas, [eData], statusEscala(eSituacao), {
+        ilhaId: eIlha === "none" ? null : eIlha,
+        programaId,
+        horaInicio: eIni || null,
+        horaFim: eFim || null,
+        produto: programas.find((p) => p.id === programaId)?.nome,
+      });
     },
     onSuccess: () => {
       invalidate();
       invalidateOperacional(qc);
+      setConflitos(null);
       setEOpen(false);
       toast.success(
         ePessoas.length > 1
-          ? `${ePessoas.length} colaboradores escalados.`
-          : "Escala de feriado registrada.",
+          ? `${ePessoas.length} colaboradores escalados e sincronizados.`
+          : "Escala de feriado registrada e sincronizada.",
       );
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
 
   const removerEscala = useMutation({
     mutationFn: async (registro: FeriadoEscala) => {
@@ -304,9 +348,11 @@ function FeriadosPlantoesPage() {
         .delete()
         .eq("id", registro.id);
       if (error) throw error;
-      if (registro.situacao === "Folga") {
-        await desmaterializarSituacaoFeriado([registro.pessoa_id], [registro.data], "Folga");
-      }
+      await desmaterializarSituacaoFeriado(
+        [registro.pessoa_id],
+        [registro.data],
+        statusEscala(registro.situacao),
+      );
     },
     onSuccess: () => {
       invalidate();
@@ -905,11 +951,40 @@ function FeriadosPlantoesPage() {
                 Ajuste manualmente incluindo ou retirando pessoas antes de salvar.
               </p>
             </div>
-            {eSituacao === "Folga" && (
-              <p className="rounded-md bg-muted/60 p-2 text-xs text-muted-foreground">
-                A folga será lançada também na Escala Operacional e no Planejamento Macro.
-              </p>
+            {eSituacao === "Trabalha" && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1.5">
+                  <Label>Ilha</Label>
+                  <Select value={eIlha} onValueChange={setEIlha}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sem ilha</SelectItem>
+                      {ilhas.map((i) => (
+                        <SelectItem key={i.id} value={i.id}>{i.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Conteúdo</Label>
+                  <Select value={ePrograma} onValueChange={setEPrograma}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sem conteúdo</SelectItem>
+                      {programas.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             )}
+            <p className="rounded-md bg-muted/60 p-2 text-xs text-muted-foreground">
+              O lançamento aparece na Escala Operacional e no Planejamento Macro.
+              {eSituacao === "Trabalha"
+                ? " Com uma ilha selecionada, também aparece no Mapa de Ilhas e na Distribuição de Trabalho."
+                : ""}
+            </p>
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
                 <Label>Hora início</Label>
@@ -923,12 +998,48 @@ function FeriadosPlantoesPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEOpen(false)}>Cancelar</Button>
-            <Button onClick={() => salvarEscala.mutate()} disabled={salvarEscala.isPending}>
+            <Button
+              onClick={() => void tentarSalvar()}
+              disabled={salvarEscala.isPending || checando}
+            >
               Salvar
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* --------------------- Dialog de conflito de alocação -------------------- */}
+      <Dialog open={conflitos !== null} onOpenChange={(o) => !o && setConflitos(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Já existe alocação nessa data</DialogTitle>
+            <DialogDescription>
+              Confirme para substituir os apontamentos abaixo em todos os painéis.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-60 space-y-1 overflow-auto rounded-md border p-2 text-sm scroll-thin">
+            {(conflitos ?? []).map((c, i) => (
+              <div key={`${c.pessoa_id}-${c.tipo}-${i}`} className="flex justify-between gap-2">
+                <span className="truncate">{nomePessoa(c.pessoa_id)}</span>
+                <span className="shrink-0 text-muted-foreground">
+                  {br(c.data)} · {c.tipo}: {c.detalhe}
+                </span>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConflitos(null)}>Cancelar</Button>
+            <Button
+              variant="destructive"
+              onClick={() => salvarEscala.mutate()}
+              disabled={salvarEscala.isPending}
+            >
+              Prosseguir mesmo assim
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
 
       {/* ----------------------------- Dialog grupo ---------------------------- */}
       <Dialog open={gOpen} onOpenChange={setGOpen}>
