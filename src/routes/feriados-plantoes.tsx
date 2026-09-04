@@ -49,6 +49,11 @@ import {
 
 import { supabase } from "@/integrations/supabase/client";
 import { pessoasQuery, todasFeriasQuery } from "@/lib/queries";
+import {
+  desmaterializarSituacaoFeriado,
+  invalidateOperacional,
+  materializarSituacaoFeriado,
+} from "@/lib/sync";
 import { PROGRAMA_CORES, contrastText, hexToSoftBg } from "@/lib/domain";
 import {
   addDays,
@@ -567,7 +572,7 @@ function FeriadosPlantoesPage() {
                                     variant="ghost"
                                     size="icon"
                                     className="h-7 w-7 text-destructive"
-                                    onClick={() => removerEscala.mutate(e.id)}
+                                    onClick={() => removerEscala.mutate(e)}
                                   >
                                     <Trash2 className="h-3.5 w-3.5" />
                                   </Button>
@@ -862,28 +867,49 @@ function FeriadosPlantoesPage() {
               </div>
             </div>
             <div className="grid gap-1.5">
-              <Label>Colaborador</Label>
-              <Select value={ePessoa} onValueChange={setEPessoa}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>
-                  {pessoas.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-1.5">
               <Label>Grupo</Label>
-              <Select value={eGrupo} onValueChange={setEGrupo}>
+              <Select value={eGrupo} onValueChange={escolherGrupo}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Sem grupo</SelectItem>
                   {grupos.map((g) => (
-                    <SelectItem key={g.id} value={g.id}>{g.nome}</SelectItem>
+                    <SelectItem key={g.id} value={g.id}>
+                      {g.nome} ({membrosDoGrupo(g.id).length})
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Ao escolher um grupo, os colaboradores dele já vêm marcados automaticamente.
+              </p>
             </div>
+            <div className="grid gap-1.5">
+              <div className="flex items-center justify-between">
+                <Label>Colaboradores</Label>
+                <span className="text-xs text-muted-foreground">
+                  {ePessoas.length} selecionado(s)
+                </span>
+              </div>
+              <div className="max-h-44 space-y-1 overflow-auto rounded-md border p-2 scroll-thin">
+                {pessoas.map((p) => (
+                  <label key={p.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={ePessoas.includes(p.id)}
+                      onCheckedChange={(v) => togglePessoa(p.id, v === true)}
+                    />
+                    <span className="truncate">{p.nome}</span>
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Ajuste manualmente incluindo ou retirando pessoas antes de salvar.
+              </p>
+            </div>
+            {eSituacao === "Folga" && (
+              <p className="rounded-md bg-muted/60 p-2 text-xs text-muted-foreground">
+                A folga será lançada também na Escala Operacional e no Planejamento Macro.
+              </p>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
                 <Label>Hora início</Label>
