@@ -348,9 +348,11 @@ function FeriadosPlantoesPage() {
         .delete()
         .eq("id", registro.id);
       if (error) throw error;
-      if (registro.situacao === "Folga") {
-        await desmaterializarSituacaoFeriado([registro.pessoa_id], [registro.data], "Folga");
-      }
+      await desmaterializarSituacaoFeriado(
+        [registro.pessoa_id],
+        [registro.data],
+        statusEscala(registro.situacao),
+      );
     },
     onSuccess: () => {
       invalidate();
