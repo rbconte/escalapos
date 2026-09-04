@@ -48,11 +48,13 @@ import {
 } from "@/components/ui/table";
 
 import { supabase } from "@/integrations/supabase/client";
-import { pessoasQuery, todasFeriasQuery } from "@/lib/queries";
+import { ilhasQuery, pessoasQuery, programasQuery, todasFeriasQuery } from "@/lib/queries";
 import {
+  conflitosOperacionais,
   desmaterializarSituacaoFeriado,
   invalidateOperacional,
   materializarSituacaoFeriado,
+  type ConflitoOperacional,
 } from "@/lib/sync";
 import { PROGRAMA_CORES, contrastText, hexToSoftBg } from "@/lib/domain";
 import {
