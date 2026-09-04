@@ -422,14 +422,20 @@ export async function desmaterializarEscalaDeFerias(
 }
 
 /**
- * Feriados/Plantões → Escala + Planejamento Macro.
- * Materializa uma situação de feriado (ex.: "Folga") na escala operacional,
- * que é a mesma fonte lida pelo Planejamento Macro.
+ * Feriados/Plantões → Escala + Planejamento Macro (+ Mapa de Ilhas e
+ * Distribuição, quando houver ilha).
  */
 export async function materializarSituacaoFeriado(
   pessoaIds: string[],
   datas: string[],
   status: string,
+  opts?: {
+    ilhaId?: string | null;
+    programaId?: string | null;
+    horaInicio?: string | null;
+    horaFim?: string | null;
+    produto?: string;
+  },
 ) {
   if (pessoaIds.length === 0 || datas.length === 0) return;
   await limparProjecoesDeEscalas((q) => q.in("pessoa_id", pessoaIds).in("data", datas));
@@ -441,17 +447,114 @@ export async function materializarSituacaoFeriado(
   if (delErr) throw delErr;
   const rows = pessoaIds.flatMap((pessoa_id) =>
     datas.map((data) => ({
+      demanda_id: crypto.randomUUID(),
       pessoa_id,
       data,
-      programa_id: null,
-      ilha_id: null,
+      programa_id: opts?.programaId ?? null,
+      ilha_id: opts?.ilhaId ?? null,
+      hora_inicio: opts?.horaInicio || null,
+      hora_fim: opts?.horaFim || null,
       modalidade: "TV",
       status,
     })),
   );
   const { error } = await supabase.from("escalas").insert(rows);
   if (error) throw error;
+
+  if (status === "Trabalhando" && opts?.ilhaId) {
+    const produtoPorPrograma = new Map<string, string>();
+    if (opts.programaId && opts.produto) {
+      produtoPorPrograma.set(opts.programaId, opts.produto);
+    }
+    await sincronizarEscalas(
+      rows.map((r) => ({
+        id: r.demanda_id,
+        demanda_id: r.demanda_id,
+        pessoa_id: r.pessoa_id,
+        programa_id: r.programa_id,
+        ilha_id: r.ilha_id,
+        data: r.data,
+        hora_inicio: r.hora_inicio,
+        hora_fim: r.hora_fim,
+        status: r.status,
+      })),
+      produtoPorPrograma,
+    );
+  }
 }
+
+export type ConflitoOperacional = {
+  pessoa_id: string;
+  data: string;
+  tipo: string;
+  detalhe: string;
+};
+
+/** Verifica alocações já existentes (escala/férias/licenças) antes de sobrescrever. */
+export async function conflitosOperacionais(
+  pessoaIds: string[],
+  datas: string[],
+): Promise<ConflitoOperacional[]> {
+  if (pessoaIds.length === 0 || datas.length === 0) return [];
+  const ordenadas = Array.from(new Set(datas)).sort();
+  const min = ordenadas[0]!;
+  const max = ordenadas[ordenadas.length - 1]!;
+
+  const [esc, fer, lic] = await Promise.all([
+    supabase
+      .from("escalas")
+      .select("pessoa_id, data, status")
+      .in("pessoa_id", pessoaIds)
+      .in("data", ordenadas),
+    supabase
+      .from("ferias")
+      .select("pessoa_id, data_inicio, data_fim, status")
+      .in("pessoa_id", pessoaIds)
+      .lte("data_inicio", max)
+      .gte("data_fim", min),
+    supabase
+      .from("licencas")
+      .select("pessoa_id, data_inicio, data_fim, tipo")
+      .in("pessoa_id", pessoaIds)
+      .lte("data_inicio", max)
+      .gte("data_fim", min),
+  ]);
+  if (esc.error) throw esc.error;
+  if (fer.error) throw fer.error;
+  if (lic.error) throw lic.error;
+
+  const out: ConflitoOperacional[] = [];
+  for (const e of esc.data ?? []) {
+    out.push({
+      pessoa_id: e.pessoa_id,
+      data: e.data,
+      tipo: "Escala",
+      detalhe: `já consta como "${e.status}"`,
+    });
+  }
+  for (const f of fer.data ?? []) {
+    if (f.status === "Cancelada") continue;
+    for (const d of ordenadas) {
+      if (f.data_inicio <= d && f.data_fim >= d) {
+        out.push({ pessoa_id: f.pessoa_id, data: d, tipo: "Férias", detalhe: "período de férias" });
+      }
+    }
+  }
+  for (const l of lic.data ?? []) {
+    for (const d of ordenadas) {
+      if (l.data_inicio <= d && l.data_fim >= d) {
+        out.push({
+          pessoa_id: l.pessoa_id,
+          data: d,
+          tipo: "Licença",
+          detalhe: l.tipo || "licença",
+        });
+      }
+    }
+  }
+  return out;
+}
+
 
 /** Remove da escala uma situação de feriado previamente materializada. */
 export async function desmaterializarSituacaoFeriado(
