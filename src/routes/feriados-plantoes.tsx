@@ -572,7 +572,7 @@ function FeriadosPlantoesPage() {
                                     variant="ghost"
                                     size="icon"
                                     className="h-7 w-7 text-destructive"
-                                    onClick={() => removerEscala.mutate(e.id)}
+                                    onClick={() => removerEscala.mutate(e)}
                                   >
                                     <Trash2 className="h-3.5 w-3.5" />
                                   </Button>
