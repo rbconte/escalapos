@@ -49,6 +49,11 @@ import {
 
 import { supabase } from "@/integrations/supabase/client";
 import { pessoasQuery, todasFeriasQuery } from "@/lib/queries";
+import {
+  desmaterializarSituacaoFeriado,
+  invalidateOperacional,
+  materializarSituacaoFeriado,
+} from "@/lib/sync";
 import { PROGRAMA_CORES, contrastText, hexToSoftBg } from "@/lib/domain";
 import {
   addDays,
