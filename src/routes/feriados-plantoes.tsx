@@ -951,11 +951,40 @@ function FeriadosPlantoesPage() {
                 Ajuste manualmente incluindo ou retirando pessoas antes de salvar.
               </p>
             </div>
-            {eSituacao === "Folga" && (
-              <p className="rounded-md bg-muted/60 p-2 text-xs text-muted-foreground">
-                A folga será lançada também na Escala Operacional e no Planejamento Macro.
-              </p>
+            {eSituacao === "Trabalha" && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1.5">
+                  <Label>Ilha</Label>
+                  <Select value={eIlha} onValueChange={setEIlha}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sem ilha</SelectItem>
+                      {ilhas.map((i) => (
+                        <SelectItem key={i.id} value={i.id}>{i.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Conteúdo</Label>
+                  <Select value={ePrograma} onValueChange={setEPrograma}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sem conteúdo</SelectItem>
+                      {programas.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             )}
+            <p className="rounded-md bg-muted/60 p-2 text-xs text-muted-foreground">
+              O lançamento aparece na Escala Operacional e no Planejamento Macro.
+              {eSituacao === "Trabalha"
+                ? " Com uma ilha selecionada, também aparece no Mapa de Ilhas e na Distribuição de Trabalho."
+                : ""}
+            </p>
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
                 <Label>Hora início</Label>
@@ -969,12 +998,48 @@ function FeriadosPlantoesPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEOpen(false)}>Cancelar</Button>
-            <Button onClick={() => salvarEscala.mutate()} disabled={salvarEscala.isPending}>
+            <Button
+              onClick={() => void tentarSalvar()}
+              disabled={salvarEscala.isPending || checando}
+            >
               Salvar
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* --------------------- Dialog de conflito de alocação -------------------- */}
+      <Dialog open={conflitos !== null} onOpenChange={(o) => !o && setConflitos(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Já existe alocação nessa data</DialogTitle>
+            <DialogDescription>
+              Confirme para substituir os apontamentos abaixo em todos os painéis.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-60 space-y-1 overflow-auto rounded-md border p-2 text-sm scroll-thin">
+            {(conflitos ?? []).map((c, i) => (
+              <div key={`${c.pessoa_id}-${c.tipo}-${i}`} className="flex justify-between gap-2">
+                <span className="truncate">{nomePessoa(c.pessoa_id)}</span>
+                <span className="shrink-0 text-muted-foreground">
+                  {br(c.data)} · {c.tipo}: {c.detalhe}
+                </span>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConflitos(null)}>Cancelar</Button>
+            <Button
+              variant="destructive"
+              onClick={() => salvarEscala.mutate()}
+              disabled={salvarEscala.isPending}
+            >
+              Prosseguir mesmo assim
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
 
       {/* ----------------------------- Dialog grupo ---------------------------- */}
       <Dialog open={gOpen} onOpenChange={setGOpen}>
