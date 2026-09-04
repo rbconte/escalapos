@@ -242,6 +242,14 @@ function FeriadosPlantoesPage() {
   const [eSituacao, setESituacao] = useState<string>("Trabalha");
   const [eIni, setEIni] = useState("");
   const [eFim, setEFim] = useState("");
+  const [eIlha, setEIlha] = useState<string>("none");
+  const [ePrograma, setEPrograma] = useState<string>("none");
+  const [conflitos, setConflitos] = useState<ConflitoOperacional[] | null>(null);
+  const [checando, setChecando] = useState(false);
+
+  /** Situação do feriado → status usado na escala/planejamento macro. */
+  const statusEscala = (situacao: string) =>
+    situacao === "Trabalha" ? "Trabalhando" : situacao;
 
   const membrosDoGrupo = (grupoId: string) =>
     membros.filter((m) => m.grupo_id === grupoId).map((m) => m.pessoa_id);
@@ -264,7 +272,31 @@ function FeriadosPlantoesPage() {
     setESituacao("Trabalha");
     setEIni("");
     setEFim("");
+    setEIlha("none");
+    setEPrograma("none");
+    setConflitos(null);
     setEOpen(true);
+  }
+
+  /** Verifica alocações existentes antes de gravar; se houver, pede confirmação. */
+  async function tentarSalvar() {
+    if (ePessoas.length === 0) {
+      toast.error("Selecione um grupo ou ao menos um colaborador.");
+      return;
+    }
+    setChecando(true);
+    try {
+      const achados = await conflitosOperacionais(ePessoas, [eData]);
+      if (achados.length > 0) {
+        setConflitos(achados);
+        return;
+      }
+      salvarEscala.mutate();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setChecando(false);
+    }
   }
 
   const salvarEscala = useMutation({
@@ -283,25 +315,31 @@ function FeriadosPlantoesPage() {
         { onConflict: "data,pessoa_id" },
       );
       if (error) throw error;
-      // Folga no feriado reflete na Escala Operacional e no Planejamento Macro.
-      if (eSituacao === "Folga") {
-        await materializarSituacaoFeriado(ePessoas, [eData], "Folga");
-      } else {
-        await desmaterializarSituacaoFeriado(ePessoas, [eData], "Folga");
-      }
+      // Toda situação de feriado reflete na Escala, Planejamento Macro e — com
+      // ilha informada — no Mapa de Ilhas e na Distribuição de Trabalho.
+      const programaId = ePrograma === "none" ? null : ePrograma;
+      await materializarSituacaoFeriado(ePessoas, [eData], statusEscala(eSituacao), {
+        ilhaId: eIlha === "none" ? null : eIlha,
+        programaId,
+        horaInicio: eIni || null,
+        horaFim: eFim || null,
+        produto: programas.find((p) => p.id === programaId)?.nome,
+      });
     },
     onSuccess: () => {
       invalidate();
       invalidateOperacional(qc);
+      setConflitos(null);
       setEOpen(false);
       toast.success(
         ePessoas.length > 1
-          ? `${ePessoas.length} colaboradores escalados.`
-          : "Escala de feriado registrada.",
+          ? `${ePessoas.length} colaboradores escalados e sincronizados.`
+          : "Escala de feriado registrada e sincronizada.",
       );
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
 
   const removerEscala = useMutation({
     mutationFn: async (registro: FeriadoEscala) => {
