@@ -107,6 +107,8 @@ export const Route = createFileRoute("/feriados-plantoes")({
       context.queryClient.ensureQueryData(feriadoEscalasQuery()),
       context.queryClient.ensureQueryData(pessoasQuery()),
       context.queryClient.ensureQueryData(todasFeriasQuery()),
+      context.queryClient.ensureQueryData(ilhasQuery()),
+      context.queryClient.ensureQueryData(programasQuery()),
     ]);
   },
   component: FeriadosPlantoesPage,
