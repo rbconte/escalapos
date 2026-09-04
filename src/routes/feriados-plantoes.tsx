@@ -136,6 +136,8 @@ function FeriadosPlantoesPage() {
   const { data: escalas } = useSuspenseQuery(feriadoEscalasQuery());
   const { data: pessoas } = useSuspenseQuery(pessoasQuery());
   const { data: ferias } = useSuspenseQuery(todasFeriasQuery());
+  const { data: ilhas } = useSuspenseQuery(ilhasQuery());
+  const { data: programas } = useSuspenseQuery(programasQuery());
 
   const nomePessoa = (id: string) =>
     pessoas.find((p) => p.id === id)?.nome ?? "—";
