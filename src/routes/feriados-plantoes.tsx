@@ -915,18 +915,25 @@ function FeriadosPlantoesPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div className="grid gap-1.5">
                 <Label>Data início</Label>
                 <Input
                   type="date"
                   value={eData}
-                  min={eFeriado?.plantaoInicio}
-                  max={eFeriado?.plantaoFim}
                   onChange={(e) => {
                     setEData(e.target.value);
                     if (eDataFim && e.target.value > eDataFim) setEDataFim(e.target.value);
                   }}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Data fim</Label>
+                <Input
+                  type="date"
+                  value={eDataFim}
+                  min={eData}
+                  onChange={(e) => setEDataFim(e.target.value)}
                 />
               </div>
               <div className="grid gap-1.5">
@@ -941,6 +948,12 @@ function FeriadosPlantoesPage() {
                 </Select>
               </div>
             </div>
+            <p className="text-xs text-muted-foreground">
+              O lançamento é replicado em todos os dias do período informado
+              {datasDoPeriodo().length > 0
+                ? ` (${datasDoPeriodo().length} dia(s)).`
+                : "."}
+            </p>
             <div className="grid gap-1.5">
               <Label>Grupo</Label>
               <Select value={eGrupo} onValueChange={escolherGrupo}>
