@@ -280,15 +280,34 @@ function FeriadosPlantoesPage() {
     setEOpen(true);
   }
 
+  /** Todas as datas do período informado (início → fim, inclusive). */
+  function datasDoPeriodo(): string[] {
+    const inicio = eData || eFeriado?.plantaoInicio || "";
+    const fim = eDataFim || inicio;
+    if (!inicio || !fim || fim < inicio) return inicio ? [inicio] : [];
+    const datas: string[] = [];
+    let d = inicio;
+    while (d <= fim && datas.length < 62) {
+      datas.push(d);
+      d = addDays(d, 1);
+    }
+    return datas;
+  }
+
   /** Verifica alocações existentes antes de gravar; se houver, pede confirmação. */
   async function tentarSalvar() {
     if (ePessoas.length === 0) {
       toast.error("Selecione um grupo ou ao menos um colaborador.");
       return;
     }
+    const datas = datasDoPeriodo();
+    if (datas.length === 0) {
+      toast.error("Informe um período válido (data fim igual ou posterior ao início).");
+      return;
+    }
     setChecando(true);
     try {
-      const achados = await conflitosOperacionais(ePessoas, [eData]);
+      const achados = await conflitosOperacionais(ePessoas, datas);
       if (achados.length > 0) {
         setConflitos(achados);
         return;
@@ -305,15 +324,20 @@ function FeriadosPlantoesPage() {
     mutationFn: async () => {
       if (ePessoas.length === 0)
         throw new Error("Selecione um grupo ou ao menos um colaborador.");
+      const datas = datasDoPeriodo();
+      if (datas.length === 0)
+        throw new Error("Informe um período válido (data fim igual ou posterior ao início).");
       const { error } = await supabase.from("feriado_escalas").upsert(
-        ePessoas.map((pessoa_id) => ({
-          data: eData,
-          pessoa_id,
-          grupo_id: eGrupo === "none" ? null : eGrupo,
-          situacao: eSituacao,
-          hora_inicio: eIni || null,
-          hora_fim: eFim || null,
-        })),
+        datas.flatMap((data) =>
+          ePessoas.map((pessoa_id) => ({
+            data,
+            pessoa_id,
+            grupo_id: eGrupo === "none" ? null : eGrupo,
+            situacao: eSituacao,
+            hora_inicio: eIni || null,
+            hora_fim: eFim || null,
+          })),
+        ),
         { onConflict: "data,pessoa_id" },
       );
       if (error) throw error;
