@@ -237,6 +237,7 @@ function FeriadosPlantoesPage() {
   const [eOpen, setEOpen] = useState(false);
   const [eFeriado, setEFeriado] = useState<Feriado | null>(null);
   const [eData, setEData] = useState("");
+  const [eDataFim, setEDataFim] = useState("");
   const [ePessoas, setEPessoas] = useState<string[]>([]);
   const [eGrupo, setEGrupo] = useState<string>("none");
   const [eSituacao, setESituacao] = useState<string>("Trabalha");
@@ -267,6 +268,7 @@ function FeriadosPlantoesPage() {
   function openEscala(f: Feriado) {
     setEFeriado(f);
     setEData(f.plantaoInicio);
+    setEDataFim(f.plantaoFim);
     setEPessoas([]);
     setEGrupo("none");
     setESituacao("Trabalha");
@@ -278,15 +280,34 @@ function FeriadosPlantoesPage() {
     setEOpen(true);
   }
 
+  /** Todas as datas do período informado (início → fim, inclusive). */
+  function datasDoPeriodo(): string[] {
+    const inicio = eData || eFeriado?.plantaoInicio || "";
+    const fim = eDataFim || inicio;
+    if (!inicio || !fim || fim < inicio) return inicio ? [inicio] : [];
+    const datas: string[] = [];
+    let d = inicio;
+    while (d <= fim && datas.length < 62) {
+      datas.push(d);
+      d = addDays(d, 1);
+    }
+    return datas;
+  }
+
   /** Verifica alocações existentes antes de gravar; se houver, pede confirmação. */
   async function tentarSalvar() {
     if (ePessoas.length === 0) {
       toast.error("Selecione um grupo ou ao menos um colaborador.");
       return;
     }
+    const datas = datasDoPeriodo();
+    if (datas.length === 0) {
+      toast.error("Informe um período válido (data fim igual ou posterior ao início).");
+      return;
+    }
     setChecando(true);
     try {
-      const achados = await conflitosOperacionais(ePessoas, [eData]);
+      const achados = await conflitosOperacionais(ePessoas, datas);
       if (achados.length > 0) {
         setConflitos(achados);
         return;
@@ -303,22 +324,27 @@ function FeriadosPlantoesPage() {
     mutationFn: async () => {
       if (ePessoas.length === 0)
         throw new Error("Selecione um grupo ou ao menos um colaborador.");
+      const datas = datasDoPeriodo();
+      if (datas.length === 0)
+        throw new Error("Informe um período válido (data fim igual ou posterior ao início).");
       const { error } = await supabase.from("feriado_escalas").upsert(
-        ePessoas.map((pessoa_id) => ({
-          data: eData,
-          pessoa_id,
-          grupo_id: eGrupo === "none" ? null : eGrupo,
-          situacao: eSituacao,
-          hora_inicio: eIni || null,
-          hora_fim: eFim || null,
-        })),
+        datas.flatMap((data) =>
+          ePessoas.map((pessoa_id) => ({
+            data,
+            pessoa_id,
+            grupo_id: eGrupo === "none" ? null : eGrupo,
+            situacao: eSituacao,
+            hora_inicio: eIni || null,
+            hora_fim: eFim || null,
+          })),
+        ),
         { onConflict: "data,pessoa_id" },
       );
       if (error) throw error;
       // Toda situação de feriado reflete na Escala, Planejamento Macro e — com
       // ilha informada — no Mapa de Ilhas e na Distribuição de Trabalho.
       const programaId = ePrograma === "none" ? null : ePrograma;
-      await materializarSituacaoFeriado(ePessoas, [eData], statusEscala(eSituacao), {
+      await materializarSituacaoFeriado(ePessoas, datas, statusEscala(eSituacao), {
         ilhaId: eIlha === "none" ? null : eIlha,
         programaId,
         horaInicio: eIni || null,
@@ -889,15 +915,25 @@ function FeriadosPlantoesPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div className="grid gap-1.5">
-                <Label>Data</Label>
+                <Label>Data início</Label>
                 <Input
                   type="date"
                   value={eData}
-                  min={eFeriado?.plantaoInicio}
-                  max={eFeriado?.plantaoFim}
-                  onChange={(e) => setEData(e.target.value)}
+                  onChange={(e) => {
+                    setEData(e.target.value);
+                    if (eDataFim && e.target.value > eDataFim) setEDataFim(e.target.value);
+                  }}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Data fim</Label>
+                <Input
+                  type="date"
+                  value={eDataFim}
+                  min={eData}
+                  onChange={(e) => setEDataFim(e.target.value)}
                 />
               </div>
               <div className="grid gap-1.5">
@@ -912,6 +948,12 @@ function FeriadosPlantoesPage() {
                 </Select>
               </div>
             </div>
+            <p className="text-xs text-muted-foreground">
+              O lançamento é replicado em todos os dias do período informado
+              {datasDoPeriodo().length > 0
+                ? ` (${datasDoPeriodo().length} dia(s)).`
+                : "."}
+            </p>
             <div className="grid gap-1.5">
               <Label>Grupo</Label>
               <Select value={eGrupo} onValueChange={escolherGrupo}>
