@@ -237,6 +237,7 @@ function FeriadosPlantoesPage() {
   const [eOpen, setEOpen] = useState(false);
   const [eFeriado, setEFeriado] = useState<Feriado | null>(null);
   const [eData, setEData] = useState("");
+  const [eDataFim, setEDataFim] = useState("");
   const [ePessoas, setEPessoas] = useState<string[]>([]);
   const [eGrupo, setEGrupo] = useState<string>("none");
   const [eSituacao, setESituacao] = useState<string>("Trabalha");
@@ -267,6 +268,7 @@ function FeriadosPlantoesPage() {
   function openEscala(f: Feriado) {
     setEFeriado(f);
     setEData(f.plantaoInicio);
+    setEDataFim(f.plantaoFim);
     setEPessoas([]);
     setEGrupo("none");
     setESituacao("Trabalha");
