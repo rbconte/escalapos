@@ -917,13 +917,16 @@ function FeriadosPlantoesPage() {
           <div className="grid gap-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
-                <Label>Data</Label>
+                <Label>Data início</Label>
                 <Input
                   type="date"
                   value={eData}
                   min={eFeriado?.plantaoInicio}
                   max={eFeriado?.plantaoFim}
-                  onChange={(e) => setEData(e.target.value)}
+                  onChange={(e) => {
+                    setEData(e.target.value);
+                    if (eDataFim && e.target.value > eDataFim) setEDataFim(e.target.value);
+                  }}
                 />
               </div>
               <div className="grid gap-1.5">
