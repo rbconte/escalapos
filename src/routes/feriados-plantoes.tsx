@@ -344,7 +344,7 @@ function FeriadosPlantoesPage() {
       // Toda situação de feriado reflete na Escala, Planejamento Macro e — com
       // ilha informada — no Mapa de Ilhas e na Distribuição de Trabalho.
       const programaId = ePrograma === "none" ? null : ePrograma;
-      await materializarSituacaoFeriado(ePessoas, [eData], statusEscala(eSituacao), {
+      await materializarSituacaoFeriado(ePessoas, datas, statusEscala(eSituacao), {
         ilhaId: eIlha === "none" ? null : eIlha,
         programaId,
         horaInicio: eIni || null,
